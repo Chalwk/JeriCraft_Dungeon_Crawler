@@ -77,10 +77,35 @@ local function levelUp(self)
     addMessage(self, "You reached level " .. self.player.level .. "! You feel stronger!")
 end
 
+local function calculateTileSize(self)
+    local availableWidth = self.screenWidth - UI_WIDTH - 20 -- Subtract UI width and padding
+    local availableHeight = self.screenHeight - 100         -- Subtract top and bottom padding
+
+    -- Calculate tile size based on available space
+    local tileWidth = availableWidth / DUNGEON_WIDTH
+    local tileHeight = availableHeight / DUNGEON_HEIGHT
+
+    -- Use the smaller dimension to maintain aspect ratio
+    self.tileSize = math_min(tileWidth, tileHeight)
+
+    -- Calculate offsets to center the dungeon
+    self.dungeonOffsetX = UI_WIDTH + 10
+    self.dungeonOffsetY = 50
+
+    -- If the dungeon doesn't fill the available height, center it vertically
+    local dungeonHeight = DUNGEON_HEIGHT * self.tileSize
+    if dungeonHeight < availableHeight then
+        self.dungeonOffsetY = (self.screenHeight - dungeonHeight) / 2
+    end
+end
+
 local function drawDungeon(self)
-    local tileSize = 16
-    local offsetX = UI_WIDTH + 10
-    local offsetY = 50
+    -- Recalculate tile size in case screen was resized
+    calculateTileSize(self)
+
+    local tileSize = self.tileSize
+    local offsetX = self.dungeonOffsetX
+    local offsetY = self.dungeonOffsetY
 
     -- Draw dungeon
     for y = 1, DUNGEON_HEIGHT do
@@ -91,10 +116,10 @@ local function drawDungeon(self)
 
             if self.visibleTiles[y][x] then
                 lg.setColor(tile.color)
-                lg.print(tile.char, screenX, screenY)
+                lg.print(tile.char, screenX, screenY, 0, tileSize / 16)
             elseif self.exploredTiles[y][x] then
                 lg.setColor(tile.color[1] * 0.3, tile.color[2] * 0.3, tile.color[3] * 0.3)
-                lg.print(tile.char, screenX, screenY)
+                lg.print(tile.char, screenX, screenY, 0, tileSize / 16)
             end
         end
     end
@@ -105,7 +130,7 @@ local function drawDungeon(self)
             local screenX = offsetX + (item.x - 1) * tileSize
             local screenY = offsetY + (item.y - 1) * tileSize
             lg.setColor(item.color)
-            lg.print(item.char, screenX, screenY)
+            lg.print(item.char, screenX, screenY, 0, tileSize / 16)
         end
     end
 
@@ -115,7 +140,7 @@ local function drawDungeon(self)
             local screenX = offsetX + (monster.x - 1) * tileSize
             local screenY = offsetY + (monster.y - 1) * tileSize
             lg.setColor(monster.color)
-            lg.print(monster.char, screenX, screenY)
+            lg.print(monster.char, screenX, screenY, 0, tileSize / 16)
         end
     end
 
@@ -123,7 +148,16 @@ local function drawDungeon(self)
     local playerScreenX = offsetX + (self.player.x - 1) * tileSize
     local playerScreenY = offsetY + (self.player.y - 1) * tileSize
     lg.setColor(self.player.color)
-    lg.print(self.player.char, playerScreenX, playerScreenY)
+    lg.print(self.player.char, playerScreenX, playerScreenY, 0, tileSize / 16)
+
+    -- Draw white border around the grid
+    local gridWidth = DUNGEON_WIDTH * tileSize
+    local gridHeight = DUNGEON_HEIGHT * tileSize
+
+    lg.setColor(1, 1, 1, 0.8) -- White with slight transparency
+    lg.setLineWidth(2)
+    lg.rectangle("line", offsetX, offsetY, gridWidth, gridHeight)
+    lg.setLineWidth(1)
 end
 
 local function drawUI(self)
@@ -175,7 +209,7 @@ local function drawUI(self)
 end
 
 local function drawInventory(self)
-    local panelX, panelY = 180, 100
+    local panelX, panelY = 215, 100
     local panelW, panelH = 440, 380
 
     -- Background panel with border and drop shadow
@@ -577,6 +611,11 @@ function Game.new()
     instance.buttonHover = nil
     instance.time = 0
 
+    -- Initialize tile size and offsets
+    instance.tileSize = 16
+    instance.dungeonOffsetX = UI_WIDTH + 10
+    instance.dungeonOffsetY = 50
+
     local soundManager = SoundManager.new()
     instance.sounds = soundManager
 
@@ -704,6 +743,8 @@ function Game:isGameOver() return self.gameOver end
 function Game:setScreenSize(width, height)
     self.screenWidth = width
     self.screenHeight = height
+    -- Recalculate tile size when screen size changes
+    calculateTileSize(self)
 end
 
 function Game:startNewGame(difficulty, character)
