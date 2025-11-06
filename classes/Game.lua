@@ -78,25 +78,25 @@ local function levelUp(self)
 end
 
 local function calculateTileSize(self)
-    local availableWidth = self.screenWidth - UI_WIDTH - 20 -- Subtract UI width and padding
-    local availableHeight = self.screenHeight - 100         -- Subtract top and bottom padding
+    local availableWidth = self.screenWidth - UI_WIDTH - 20
+    local availableHeight = self.screenHeight - 100
 
     -- Calculate tile size based on available space
     local tileWidth = availableWidth / DUNGEON_WIDTH
     local tileHeight = availableHeight / DUNGEON_HEIGHT
 
-    -- Use the smaller dimension to maintain aspect ratio
-    self.tileSize = math_min(tileWidth, tileHeight)
+    -- Use the smaller dimension to maintain aspect ratio, and ensure integer size
+    self.tileSize = math_max(8, math_floor(math_min(tileWidth, tileHeight)))
+
+    -- Force integer tile size for crisp rendering
+    self.tileSize = math_max(8, self.tileSize) -- Minimum 8 pixels
 
     -- Calculate offsets to center the dungeon
-    self.dungeonOffsetX = UI_WIDTH + 10
-    self.dungeonOffsetY = 50
+    local dungeonPixelWidth = DUNGEON_WIDTH * self.tileSize
+    local dungeonPixelHeight = DUNGEON_HEIGHT * self.tileSize
 
-    -- If the dungeon doesn't fill the available height, center it vertically
-    local dungeonHeight = DUNGEON_HEIGHT * self.tileSize
-    if dungeonHeight < availableHeight then
-        self.dungeonOffsetY = (self.screenHeight - dungeonHeight) / 2
-    end
+    self.dungeonOffsetX = UI_WIDTH + (availableWidth - dungeonPixelWidth) / 2
+    self.dungeonOffsetY = 50 + (availableHeight - dungeonPixelHeight) / 2
 end
 
 local function drawDungeon(self)
@@ -107,6 +107,13 @@ local function drawDungeon(self)
     local offsetX = self.dungeonOffsetX
     local offsetY = self.dungeonOffsetY
 
+    -- Create and configure font once (cached for performance)
+    if not self.dungeonFont or self.dungeonFont:getHeight() ~= tileSize then
+        self.dungeonFont = lg.newFont(tileSize)
+        self.dungeonFont:setFilter("nearest", "nearest") -- Pixel-perfect scaling
+    end
+    lg.setFont(self.dungeonFont)
+
     -- Draw dungeon
     for y = 1, DUNGEON_HEIGHT do
         for x = 1, DUNGEON_WIDTH do
@@ -116,10 +123,10 @@ local function drawDungeon(self)
 
             if self.visibleTiles[y][x] then
                 lg.setColor(tile.color)
-                lg.print(tile.char, screenX, screenY, 0, tileSize / 16)
+                lg.print(tile.char, screenX, screenY)
             elseif self.exploredTiles[y][x] then
                 lg.setColor(tile.color[1] * 0.3, tile.color[2] * 0.3, tile.color[3] * 0.3)
-                lg.print(tile.char, screenX, screenY, 0, tileSize / 16)
+                lg.print(tile.char, screenX, screenY)
             end
         end
     end
@@ -130,7 +137,7 @@ local function drawDungeon(self)
             local screenX = offsetX + (item.x - 1) * tileSize
             local screenY = offsetY + (item.y - 1) * tileSize
             lg.setColor(item.color)
-            lg.print(item.char, screenX, screenY, 0, tileSize / 16)
+            lg.print(item.char, screenX, screenY)
         end
     end
 
@@ -140,7 +147,7 @@ local function drawDungeon(self)
             local screenX = offsetX + (monster.x - 1) * tileSize
             local screenY = offsetY + (monster.y - 1) * tileSize
             lg.setColor(monster.color)
-            lg.print(monster.char, screenX, screenY, 0, tileSize / 16)
+            lg.print(monster.char, screenX, screenY)
         end
     end
 
@@ -148,13 +155,13 @@ local function drawDungeon(self)
     local playerScreenX = offsetX + (self.player.x - 1) * tileSize
     local playerScreenY = offsetY + (self.player.y - 1) * tileSize
     lg.setColor(self.player.color)
-    lg.print(self.player.char, playerScreenX, playerScreenY, 0, tileSize / 16)
+    lg.print(self.player.char, playerScreenX, playerScreenY)
 
     -- Draw white border around the grid
     local gridWidth = DUNGEON_WIDTH * tileSize
     local gridHeight = DUNGEON_HEIGHT * tileSize
 
-    lg.setColor(1, 1, 1, 0.8) -- White with slight transparency
+    lg.setColor(1, 1, 1, 0.8)
     lg.setLineWidth(2)
     lg.rectangle("line", offsetX, offsetY, gridWidth, gridHeight)
     lg.setLineWidth(1)
@@ -610,6 +617,7 @@ function Game.new()
     instance.screenShake = { intensity = 0, duration = 0, timer = 0, active = false }
     instance.buttonHover = nil
     instance.time = 0
+    instance.dungeonFont = nil
 
     -- Initialize tile size and offsets
     instance.tileSize = 16
