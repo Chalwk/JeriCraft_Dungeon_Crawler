@@ -706,7 +706,7 @@ function Game:rest()
     local heal = math_random(1, 3)
     self.player.hp = math_min(self.player.maxHp, self.player.hp + heal)
     addMessage(self, "You rest and heal " .. heal .. " HP")
-    self.sounds:play("heal") -- todo: create healing sound
+    self.sounds:play("heal")
     self.turn = self.turn + 1
     monsterTurns(self)
 end
