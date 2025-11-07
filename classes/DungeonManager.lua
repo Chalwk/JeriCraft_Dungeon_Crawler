@@ -162,6 +162,34 @@ local function placeEntities(dungeon, monsters, items, player, room, isSpecialRo
     end
 end
 
+local function placeSpecialKey(dungeon, items, monsters, player, rooms)
+    if #rooms < 2 then return end  -- Need at least 2 rooms
+
+    -- Choose a random room (not the first room where player starts)
+    local keyRoomIndex = math_random(2, #rooms)
+    local keyRoom = rooms[keyRoomIndex]
+
+    -- Find a valid position in the room
+    local attempts = 0
+    while attempts < 50 do
+        local x = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
+        local y = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
+
+        if not isBlocked(dungeon, monsters, player, x, y) then
+            table_insert(items, {
+                x = x,
+                y = y,
+                char = TILES.KEY,
+                color = { 1, 0.8, 0 },  -- Gold color
+                name = "Special Key"
+            })
+            return true
+        end
+        attempts = attempts + 1
+    end
+    return false
+end
+
 local function createSpecialDoor(dungeon, room)
     -- Place a special door on a random wall of the room
     local wall = math_random(1, 4)
@@ -312,6 +340,7 @@ function DungeonManager:generateDungeon(player)
     end
 
     local rooms = {}
+    local specialDoorPlaced = false
 
     for i = 1, MAX_ROOMS do
         -- Random room size
@@ -333,10 +362,6 @@ function DungeonManager:generateDungeon(player)
         end
 
         if not failed then
-            -- Decide if this room should have a special door
-            local hasSpecialDoor = false
-            if i > 1 and math_random() < SPECIAL_ROOM_CHANCE then hasSpecialDoor = true end
-
             -- Place player in first room
             if #rooms == 0 then
                 player.x = math_floor(newRoom.x + newRoom.w / 2)
@@ -348,8 +373,8 @@ function DungeonManager:generateDungeon(player)
                 local prevRoom = rooms[#rooms]
                 createTunnel(dungeon, prevRoom, newRoom)
 
-                -- Place special door if this room should have one
-                if hasSpecialDoor then
+                -- Place ONE special door in a random room (not the first room)
+                if not specialDoorPlaced and i > 1 and math_random() < SPECIAL_ROOM_CHANCE then
                     local doorX, doorY = createSpecialDoor(dungeon, newRoom)
                     if doorX and doorY then
                         table_insert(specialDoors, {
@@ -357,6 +382,7 @@ function DungeonManager:generateDungeon(player)
                             doorY = doorY,
                             room = newRoom
                         })
+                        specialDoorPlaced = true
                     end
                 end
             end
@@ -365,6 +391,11 @@ function DungeonManager:generateDungeon(player)
             placeEntities(dungeon, monsters, items, player, newRoom, false)
             table_insert(rooms, newRoom)
         end
+    end
+
+    -- Place exactly ONE special key
+    if specialDoorPlaced then
+        placeSpecialKey(dungeon, items, monsters, player, rooms)
     end
 
     -- Place exit in last room
