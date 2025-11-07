@@ -900,8 +900,8 @@ function Game:draw()
     if self.screenShake.active then
         local progress = self.screenShake.timer / self.screenShake.duration
         local currentIntensity = self.screenShake.intensity * (1 - progress)
-        offsetX = love.math.random(-currentIntensity, currentIntensity)
-        offsetY = love.math.random(-currentIntensity, currentIntensity)
+        offsetX = math_random(-currentIntensity, currentIntensity)
+        offsetY = math_random(-currentIntensity, currentIntensity)
     end
 
     lg.push()
