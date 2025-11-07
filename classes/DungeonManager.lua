@@ -86,31 +86,14 @@ local function createTunnel(dungeon, room1, room2)
     end
 end
 
-local function isBlocked(dungeon, monsters, player, x, y)
-    if not dungeon[y] or not dungeon[y][x] then return true end
-
-    local t = dungeon[y][x].type
-    if t == "wall" or t == "special_door" then return true end
-
-    -- Check monsters
-    for _, monster in ipairs(monsters) do
-        if monster.x == x and monster.y == y then return true end
-    end
-
-    -- Check player
-    if player.x == x and player.y == y then return true end
-
-    return false
-end
-
-local function placeEntities(dungeon, monsters, items, player, room, isSpecialRoom)
+local function placeEntities(self, dungeon, monsters, items, player, room, isSpecialRoom)
     -- Place monsters (more monsters in special rooms)
     local numMonsters = math_random(0, isSpecialRoom and 3 or 2)
     for _ = 1, numMonsters do
         local x = math_random(room.x + 1, room.x + room.w - 2)
         local y = math_random(room.y + 1, room.y + room.h - 2)
 
-        if not isBlocked(dungeon, monsters, player, x, y) then
+        if not self:isBlocked(dungeon, monsters, player, x, y) then
             local monster = MONSTERS[math_random(#MONSTERS)]
             table_insert(monsters, {
                 x = x,
@@ -132,7 +115,7 @@ local function placeEntities(dungeon, monsters, items, player, room, isSpecialRo
         local x = math_random(room.x + 1, room.x + room.w - 2)
         local y = math_random(room.y + 1, room.y + room.h - 2)
 
-        if not isBlocked(dungeon, monsters, player, x, y) then
+        if not self:isBlocked(dungeon, monsters, player, x, y) then
             local item
             if isSpecialRoom then
                 -- Better loot in special rooms
@@ -162,7 +145,7 @@ local function placeEntities(dungeon, monsters, items, player, room, isSpecialRo
     end
 end
 
-local function placeSpecialKey(dungeon, items, monsters, player, rooms)
+local function placeSpecialKey(self, dungeon, items, monsters, player, rooms)
     if #rooms < 2 then return end  -- Need at least 2 rooms
 
     -- Choose a random room (not the first room where player starts)
@@ -175,7 +158,7 @@ local function placeSpecialKey(dungeon, items, monsters, player, rooms)
         local x = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
         local y = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
 
-        if not isBlocked(dungeon, monsters, player, x, y) then
+        if not self:isBlocked(dungeon, monsters, player, x, y) then
             table_insert(items, {
                 x = x,
                 y = y,
@@ -315,7 +298,7 @@ function DungeonManager:generateSpecialRoom()
     end
 
     -- Place better monsters and loot in special room
-    placeEntities(specialDungeon, monsters, items, { x = 0, y = 0 }, specialRoom, true)
+    placeEntities(self, specialDungeon, monsters, items, { x = 0, y = 0 }, specialRoom, true)
 
     return specialDungeon, monsters, items, visibleTiles, exitX, exitY, specialRoom
 end
@@ -388,14 +371,14 @@ function DungeonManager:generateDungeon(player)
             end
 
             -- Place monsters and items
-            placeEntities(dungeon, monsters, items, player, newRoom, false)
+            placeEntities(self, dungeon, monsters, items, player, newRoom, false)
             table_insert(rooms, newRoom)
         end
     end
 
     -- Place exactly ONE special key
     if specialDoorPlaced then
-        placeSpecialKey(dungeon, items, monsters, player, rooms)
+        placeSpecialKey(self, dungeon, items, monsters, player, rooms)
     end
 
     -- Place exit in last room
@@ -433,7 +416,21 @@ function DungeonManager:updateFOV(player, visibleTiles, exploredTiles)
 end
 
 function DungeonManager:isBlocked(dungeon, monsters, player, x, y)
-    return isBlocked(dungeon, monsters, player, x, y)
+    if not dungeon[y] or not dungeon[y][x] then return true end
+
+    local t = dungeon[y][x].type
+    -- Allow movement through special doors (they're handled by interaction)
+    if t == "wall" then return true end
+
+    -- Check monsters
+    for _, monster in ipairs(monsters) do
+        if monster.x == x and monster.y == y then return true end
+    end
+
+    -- Check player
+    if player.x == x and player.y == y then return true end
+
+    return false
 end
 
 function DungeonManager.new()

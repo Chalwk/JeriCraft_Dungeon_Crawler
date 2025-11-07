@@ -214,7 +214,7 @@ local function drawUI(self)
     if self.inSpecialRoom then
         lg.setColor(0.8, 0.6, 0.2) -- Gold color for special room
         lg.print("Location: Special Room", x, y); y = y + 20
-        lg.setColor(1, 1, 1) -- Reset to white
+        lg.setColor(1, 1, 1)       -- Reset to white
     else
         lg.print("Location: Dungeon Level " .. self.dungeonLevel, x, y); y = y + 20
     end
@@ -412,26 +412,6 @@ local function updateFOV(self)
     end
 end
 
-local function isBlocked(self, x, y, inSpecialRoom)
-    local dungeon = inSpecialRoom and self.specialRoomDungeon or self.dungeon
-    local monsters = inSpecialRoom and self.specialRoomMonsters or self.monsters
-
-    if not dungeon[y] or not dungeon[y][x] then return true end
-
-    local t = dungeon[y][x].type
-    if t == "wall" or (t == "special_door" and not inSpecialRoom) then return true end
-
-    -- Check monsters
-    for _, monster in ipairs(monsters) do
-        if monster.x == x and monster.y == y then return true end
-    end
-
-    -- Check player
-    if self.player.x == x and self.player.y == y then return true end
-
-    return false
-end
-
 local function generateDungeon(self)
     local dungeon, monsters, items, visibleTiles, specialDoors = self.dungeonManager:generateDungeon(self.player)
 
@@ -543,7 +523,11 @@ local function monsterTurns(self, inSpecialRoom)
             local newX = monster.x + dx
             local newY = monster.y + dy
 
-            if not isBlocked(self, newX, newY, inSpecialRoom) then
+            if not self.dungeonManager:isBlocked(
+                inSpecialRoom and self.specialRoomDungeon or self.dungeon,
+                inSpecialRoom and self.specialRoomMonsters or self.monsters,
+                self.player, newX, newY
+            ) then
                 monster.x = newX
                 monster.y = newY
             elseif newX == self.player.x and newY == self.player.y then
@@ -570,7 +554,7 @@ local function tryOpenDoor(self)
                 local hasKey = false
                 local keyIndex = nil
                 for i, itemName in ipairs(self.player.inventory) do
-                    if itemName == "Key" then
+                    if itemName == "Special Key" then
                         hasKey = true
                         keyIndex = i
                         break
@@ -586,15 +570,19 @@ local function tryOpenDoor(self)
                     -- Remove key from inventory
                     table_remove(self.player.inventory, keyIndex)
 
-                    addMessage(self, "You unlock the door with the key!")
+                    addMessage(self, "You unlock the door with the special key!")
                     self.sounds:play("unlock")
                 else
-                    addMessage(self, "The door is locked. You need a key to open it.")
+                    addMessage(self, "The door is locked. You need a special key to open it.")
                     self.sounds:play("locked")
                 end
                 return
             elseif tile.type == "unlocked_door" then
                 addMessage(self, "The door is already unlocked.")
+                return
+            elseif tile.type == "special_door" then
+                -- Enter the special room
+                enterSpecialRoom(self, checkX, checkY)
                 return
             end
         end
@@ -753,7 +741,8 @@ function Game:movePlayer(dx, dy)
 
         -- Check for special doors
         if tile.type == "special_door" then
-            enterSpecialRoom(self, newX, newY)
+            addMessage(self, "You see a mysterious door. Press 'E' to enter.")
+            self.sounds:play("bump")
             return
         end
 
