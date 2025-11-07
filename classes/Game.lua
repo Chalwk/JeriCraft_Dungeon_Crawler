@@ -77,54 +77,46 @@ local function drawDungeon(self)
 
     -- Draw dungeon - handle special room vs main dungeon
     if self.inSpecialRoom then
-        -- Only draw the special room and its contents
-        local specialRoomData = self.specialRooms[1] -- Assuming one special room for now
+        -- Draw the special room including its walls and door
+        local specialRoomData = self.specialRooms[1]
         if specialRoomData then
             local room = specialRoomData.room
 
-            -- Draw only the special room area
-            for y = room.y, room.y + room.h do
-                for x = room.x, room.x + room.w do
+            -- Draw the room including walls (from y-1 to y+h+1 and x-1 to x+w+1)
+            for y = room.y - 1, room.y + room.h + 1 do
+                for x = room.x - 1, room.x + room.w + 1 do
                     if y >= 1 and y <= self.dungeonManager.DUNGEON_HEIGHT and
                         x >= 1 and x <= self.dungeonManager.DUNGEON_WIDTH then
                         local tile = self.dungeon[y][x]
                         local screenX = offsetX + (x - 1) * tileSize
                         local screenY = offsetY + (y - 1) * tileSize
 
+                        -- Always show the entire special room when inside
                         if self.visibleTiles[y][x] then
                             lg.setColor(tile.color)
-                            lg.print(tile.char, screenX, screenY)
-                        elseif self.exploredTiles[y][x] then
-                            lg.setColor(tile.color[1] * 0.3, tile.color[2] * 0.3, tile.color[3] * 0.3)
                             lg.print(tile.char, screenX, screenY)
                         end
                     end
                 end
             end
 
-            -- Draw items in special room
+            -- Draw items in special room (including on walls)
             for _, item in ipairs(self.items) do
-                if item.x >= room.x and item.x <= room.x + room.w and
-                    item.y >= room.y and item.y <= room.y + room.h then
-                    if self.visibleTiles[item.y][item.x] then
-                        local screenX = offsetX + (item.x - 1) * tileSize
-                        local screenY = offsetY + (item.y - 1) * tileSize
-                        lg.setColor(item.color)
-                        lg.print(item.char, screenX, screenY)
-                    end
+                if self.visibleTiles[item.y][item.x] then
+                    local screenX = offsetX + (item.x - 1) * tileSize
+                    local screenY = offsetY + (item.y - 1) * tileSize
+                    lg.setColor(item.color)
+                    lg.print(item.char, screenX, screenY)
                 end
             end
 
-            -- Draw monsters in special room
+            -- Draw monsters in special room (including on walls)
             for _, monster in ipairs(self.monsters) do
-                if monster.x >= room.x and monster.x <= room.x + room.w and
-                    monster.y >= room.y and monster.y <= room.y + room.h then
-                    if self.visibleTiles[monster.y][monster.x] then
-                        local screenX = offsetX + (monster.x - 1) * tileSize
-                        local screenY = offsetY + (monster.y - 1) * tileSize
-                        lg.setColor(monster.color)
-                        lg.print(monster.char, screenX, screenY)
-                    end
+                if self.visibleTiles[monster.y][monster.x] then
+                    local screenX = offsetX + (monster.x - 1) * tileSize
+                    local screenY = offsetY + (monster.y - 1) * tileSize
+                    lg.setColor(monster.color)
+                    lg.print(monster.char, screenX, screenY)
                 end
             end
         end
@@ -163,6 +155,27 @@ local function drawDungeon(self)
                 local screenY = offsetY + (monster.y - 1) * tileSize
                 lg.setColor(monster.color)
                 lg.print(monster.char, screenX, screenY)
+            end
+        end
+
+        -- Highlight special room boundaries subtly (visible even when outside),
+        -- but respect explored/visible state per tile for floor/wall info.
+        for _, specialRoomData in ipairs(self.specialRooms or {}) do
+            local room   = specialRoomData.room
+            -- Outline including the special_wall ring (pos.x-1,..pos.y-1) in screen coords
+            local left   = offsetX + (room.x - 2) * tileSize -- -1 for special_wall ring, -1 as Lua coords => -2 here
+            local top    = offsetY + (room.y - 2) * tileSize
+            local width  = (room.w + 2) * tileSize
+            local height = (room.h + 2) * tileSize
+
+            -- only draw outline if within the overall dungeon rectangle
+            if left + width >= offsetX and top + height >= offsetY and
+                left <= offsetX + self.dungeonManager.DUNGEON_WIDTH * tileSize and
+                top <= offsetY + self.dungeonManager.DUNGEON_HEIGHT * tileSize then
+                lg.setColor(0.9, 0.7, 0.2, 0.25)
+                lg.setLineWidth(2)
+                lg.rectangle("line", left, top, width, height, 4, 4)
+                lg.setLineWidth(1)
             end
         end
     end
@@ -548,7 +561,6 @@ local function tryOpenDoor(self)
                 end
                 return
             elseif tile.type == "unlocked_door" and self.inSpecialRoom then
-                -- If we're in a special room and click the door, leave it
                 leaveSpecialRoom(self)
                 return
             elseif tile.type == "unlocked_door" then
@@ -687,7 +699,7 @@ function Game:movePlayer(dx, dy)
     if attackedMonster then return end
 
     -- Check for stairs
-    if self.dungeon[newY][newX].type == "stairs_down" then
+    if self.dungeon[newY][newX].type == "EXIT" then
         nextLevel(self)
         return
     end
