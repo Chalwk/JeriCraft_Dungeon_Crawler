@@ -41,7 +41,7 @@ local TILES = {
     KEY = "⚷",
     LOCKED_DOOR = "🔒",
     UNLOCKED_DOOR = "🚪",
-    SPECIAL_DOOR = "🚪", -- Special door that leads to special room
+    SPECIAL_DOOR = "🚪",
     SPECIAL_WALL = "▓"
 }
 

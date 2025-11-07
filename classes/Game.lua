@@ -425,37 +425,67 @@ local function generateDungeon(self)
 end
 
 local function enterSpecialRoom(self, doorX, doorY)
+    -- Create a unique key for this special door
+    local cacheKey = doorX .. "," .. doorY
+
+    -- Check if we already have a cached room for this door
+    if self.specialRoomCache[cacheKey] then
+        -- Load from cache
+        local cached = self.specialRoomCache[cacheKey]
+        self.specialRoomDungeon = cached.dungeon
+        self.specialRoomMonsters = cached.monsters
+        self.specialRoomItems = cached.items
+        self.specialRoomVisibleTiles = cached.visibleTiles
+        self.specialRoomExitX = cached.exitX
+        self.specialRoomExitY = cached.exitY
+        self.specialRoom = cached.room
+
+        addMessage(self, "You return to the mysterious chamber!")
+    else
+        -- Generate new special room and cache it
+        local specialDungeon, monsters, items, visibleTiles, exitX, exitY, room =
+            self.dungeonManager:generateSpecialRoom()
+
+        self.specialRoomDungeon = specialDungeon
+        self.specialRoomMonsters = monsters
+        self.specialRoomItems = items
+        self.specialRoomVisibleTiles = visibleTiles
+        self.specialRoomExitX = exitX
+        self.specialRoomExitY = exitY
+        self.specialRoom = room
+
+        -- Cache the special room
+        self.specialRoomCache[cacheKey] = {
+            dungeon = specialDungeon,
+            monsters = monsters,
+            items = items,
+            visibleTiles = visibleTiles,
+            exitX = exitX,
+            exitY = exitY,
+            room = room
+        }
+
+        addMessage(self, "You enter a mysterious chamber!")
+    end
+
     -- Save return position and door
     self.specialRoomReturnX = self.player.x
     self.specialRoomReturnY = self.player.y
     self.specialRoomDoorX = doorX
     self.specialRoomDoorY = doorY
 
-    -- Generate special room
-    local specialDungeon, monsters, items, visibleTiles, exitX, exitY, room =
-        self.dungeonManager:generateSpecialRoom()
-
-    self.specialRoomDungeon = specialDungeon
-    self.specialRoomMonsters = monsters
-    self.specialRoomItems = items
-    self.specialRoomVisibleTiles = visibleTiles
-    self.specialRoomExitX = exitX
-    self.specialRoomExitY = exitY
-    self.specialRoom = room
-
-    -- Place player near the exit door in the special room
-    self.player.x = math_floor(room.x + room.w / 2)
-    self.player.y = math_floor(room.y + room.h / 2)
+    -- Place player near the center of the special room
+    self.player.x = math_floor(self.specialRoom.x + self.specialRoom.w / 2)
+    self.player.y = math_floor(self.specialRoom.y + self.specialRoom.h / 2)
 
     -- Set state
     self.inSpecialRoom = true
 
-    addMessage(self, "You enter a mysterious chamber!")
     self.sounds:play("unlock")
 
     -- Make entire special room visible
-    for y = room.y, room.y + room.h do
-        for x = room.x, room.x + room.w do
+    for y = self.specialRoom.y, self.specialRoom.y + self.specialRoom.h do
+        for x = self.specialRoom.x, self.specialRoom.x + self.specialRoom.w do
             if y >= 1 and y <= self.dungeonManager.DUNGEON_HEIGHT and
                 x >= 1 and x <= self.dungeonManager.DUNGEON_WIDTH then
                 self.specialRoomVisibleTiles[y][x] = true
@@ -466,6 +496,20 @@ end
 
 local function leaveSpecialRoom(self)
     if not self.inSpecialRoom then return end
+
+    -- Update the cache with current state before leaving
+    local cacheKey = self.specialRoomDoorX .. "," .. self.specialRoomDoorY
+    if self.specialRoomCache[cacheKey] then
+        self.specialRoomCache[cacheKey] = {
+            dungeon = self.specialRoomDungeon,
+            monsters = self.specialRoomMonsters,
+            items = self.specialRoomItems,
+            visibleTiles = self.specialRoomVisibleTiles,
+            exitX = self.specialRoomExitX,
+            exitY = self.specialRoomExitY,
+            room = self.specialRoom
+        }
+    end
 
     -- Return player to original position (next to the special door)
     self.player.x = self.specialRoomReturnX
@@ -488,7 +532,6 @@ local function leaveSpecialRoom(self)
     addMessage(self, "You return to the dungeon.")
     self.sounds:play("walk")
 
-    -- Update FOV to show main dungeon
     updateFOV(self)
 end
 
@@ -524,10 +567,10 @@ local function monsterTurns(self, inSpecialRoom)
             local newY = monster.y + dy
 
             if not self.dungeonManager:isBlocked(
-                inSpecialRoom and self.specialRoomDungeon or self.dungeon,
-                inSpecialRoom and self.specialRoomMonsters or self.monsters,
-                self.player, newX, newY
-            ) then
+                    inSpecialRoom and self.specialRoomDungeon or self.dungeon,
+                    inSpecialRoom and self.specialRoomMonsters or self.monsters,
+                    self.player, newX, newY
+                ) then
                 monster.x = newX
                 monster.y = newY
             elseif newX == self.player.x and newY == self.player.y then
@@ -646,6 +689,7 @@ function Game.new(fontManager)
     instance.specialRoomExitX = nil
     instance.specialRoomExitY = nil
     instance.specialRoom = nil
+    instance.specialRoomCache = {}
 
     instance.screenShake = { intensity = 0, duration = 0, timer = 0, active = false }
     instance.buttonHover = nil
@@ -868,7 +912,6 @@ function Game:isGameOver() return self.gameOver end
 function Game:setScreenSize(width, height)
     self.screenWidth = width
     self.screenHeight = height
-    -- Recalculate tile size when screen size changes
     calculateTileSize(self)
 end
 
@@ -876,7 +919,6 @@ function Game:startNewGame(difficulty, character)
     self.difficulty = difficulty or "medium"
     self.character = character or "warrior"
 
-    -- Reset special room state
     self.inSpecialRoom = false
     self.specialRoomReturnX = nil
     self.specialRoomReturnY = nil
@@ -889,6 +931,7 @@ function Game:startNewGame(difficulty, character)
     self.specialRoomExitX = nil
     self.specialRoomExitY = nil
     self.specialRoom = nil
+    self.specialRoomCache = {}
 
     -- Set up player based on character class
     if self.character == "warrior" then
