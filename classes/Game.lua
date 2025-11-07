@@ -128,6 +128,69 @@ local function drawDungeon(self)
     lg.setLineWidth(1)
 end
 
+local function drawSpecialRoom(self)
+    -- Recalculate tile size in case screen was resized
+    calculateTileSize(self)
+
+    local tileSize = self.tileSize
+    local offsetX = self.dungeonOffsetX
+    local offsetY = self.dungeonOffsetY
+
+    if not self.dungeonFont or self.dungeonFont:getHeight() ~= tileSize then
+        self.dungeonFont = self.fonts:getFontOfSize(tileSize)
+    end
+    self.fonts:setFont(self.dungeonFont)
+
+    -- Draw special room
+    for y = 1, self.dungeonManager.DUNGEON_HEIGHT do
+        for x = 1, self.dungeonManager.DUNGEON_WIDTH do
+            local tile = self.specialRoomDungeon[y][x]
+            local screenX = offsetX + (x - 1) * tileSize
+            local screenY = offsetY + (y - 1) * tileSize
+
+            if self.specialRoomVisibleTiles[y][x] then
+                lg.setColor(tile.color)
+                lg.print(tile.char, screenX, screenY)
+            end
+        end
+    end
+
+    -- Draw special room items
+    for _, item in ipairs(self.specialRoomItems) do
+        if self.specialRoomVisibleTiles[item.y][item.x] then
+            local screenX = offsetX + (item.x - 1) * tileSize
+            local screenY = offsetY + (item.y - 1) * tileSize
+            lg.setColor(item.color)
+            lg.print(item.char, screenX, screenY)
+        end
+    end
+
+    -- Draw special room monsters
+    for _, monster in ipairs(self.specialRoomMonsters) do
+        if self.specialRoomVisibleTiles[monster.y][monster.x] then
+            local screenX = offsetX + (monster.x - 1) * tileSize
+            local screenY = offsetY + (monster.y - 1) * tileSize
+            lg.setColor(monster.color)
+            lg.print(monster.char, screenX, screenY)
+        end
+    end
+
+    -- Draw player in special room
+    local playerScreenX = offsetX + (self.player.x - 1) * tileSize
+    local playerScreenY = offsetY + (self.player.y - 1) * tileSize
+    lg.setColor(self.player.color)
+    lg.print(self.player.char, playerScreenX, playerScreenY)
+
+    -- Draw white border around the grid with special color
+    local gridWidth = self.dungeonManager.DUNGEON_WIDTH * tileSize
+    local gridHeight = self.dungeonManager.DUNGEON_HEIGHT * tileSize
+
+    lg.setColor(0.8, 0.6, 0.2, 0.8) -- Gold border for special room
+    lg.setLineWidth(3)
+    lg.rectangle("line", offsetX, offsetY, gridWidth, gridHeight)
+    lg.setLineWidth(1)
+end
+
 local function drawUI(self)
     local x = UI_PADDING
     local y = UI_PADDING
@@ -146,6 +209,15 @@ local function drawUI(self)
     lg.print("Gold: " .. self.player.gold, x, y); y = y + 20
     lg.print("XP: " .. self.player.xp .. "/" .. (self.player.level * 10), x, y); y = y + 20
     lg.print("Turn: " .. self.turn, x, y); y = y + 28
+
+    -- Location indicator
+    if self.inSpecialRoom then
+        lg.setColor(0.8, 0.6, 0.2) -- Gold color for special room
+        lg.print("Location: Special Room", x, y); y = y + 20
+        lg.setColor(1, 1, 1) -- Reset to white
+    else
+        lg.print("Location: Dungeon Level " .. self.dungeonLevel, x, y); y = y + 20
+    end
 
     -- Controls block
     lg.setColor(0.75, 0.75, 0.75)
@@ -267,8 +339,9 @@ local function drawGameOver(self)
         0, self.screenHeight / 2 + 60, self.screenWidth, "center")
 end
 
-local function attackMonster(self, monsterIndex)
-    local monster = self.monsters[monsterIndex]
+local function attackMonster(self, monsterIndex, inSpecialRoom)
+    local monsters = inSpecialRoom and self.specialRoomMonsters or self.monsters
+    local monster = monsters[monsterIndex]
     local damage = math_max(1, self.player.attack - math_random(0, 2))
 
     monster.hp = monster.hp - damage
@@ -280,7 +353,7 @@ local function attackMonster(self, monsterIndex)
         addMessage(self, "You killed the " .. monster.name .. "!")
         self.player.xp = self.player.xp + monster.xp
         self.player.gold = self.player.gold + math_random(1, 5)
-        table_remove(self.monsters, monsterIndex)
+        table_remove(monsters, monsterIndex)
 
         -- Check level up
         if self.player.xp >= self.player.level * 10 then levelUp(self) end
@@ -295,8 +368,9 @@ local function attackMonster(self, monsterIndex)
     end
 end
 
-local function pickupItem(self, itemIndex)
-    local item = self.items[itemIndex]
+local function pickupItem(self, itemIndex, inSpecialRoom)
+    local items = inSpecialRoom and self.specialRoomItems or self.items
+    local item = items[itemIndex]
 
     if item.char == self.dungeonManager.TILES.GOLD then
         local gold = math_random(1, 10)
@@ -310,19 +384,17 @@ local function pickupItem(self, itemIndex)
         local heal = math_random(5, 10)
         self.player.hp = math_min(self.player.maxHp, self.player.hp + heal)
         addMessage(self, "You drink a healing potion and restore " .. heal .. " HP!")
-    elseif item.char == self.dungeonManager.TILES.KEY then
-        table_insert(self.player.inventory, item.name)
-        addMessage(self, "You pick up a key! This might unlock something...")
     else
         table_insert(self.player.inventory, item.name)
         addMessage(self, "You pick up " .. item.name)
     end
 
-    table_remove(self.items, itemIndex)
+    table_remove(items, itemIndex)
 end
 
-local function attackPlayer(self, monsterIndex)
-    local monster = self.monsters[monsterIndex]
+local function attackPlayer(self, monsterIndex, inSpecialRoom)
+    local monsters = inSpecialRoom and self.specialRoomMonsters or self.monsters
+    local monster = monsters[monsterIndex]
     local damage = math_max(1, monster.attack - math_random(0, self.player.defense))
 
     self.player.hp = self.player.hp - damage
@@ -333,27 +405,110 @@ local function attackPlayer(self, monsterIndex)
 end
 
 local function updateFOV(self)
-    self.dungeonManager:updateFOV(self.player, self.visibleTiles, self.exploredTiles)
+    if self.inSpecialRoom then
+        self.dungeonManager:updateFOV(self.player, self.specialRoomVisibleTiles, self.specialRoomVisibleTiles)
+    else
+        self.dungeonManager:updateFOV(self.player, self.visibleTiles, self.exploredTiles)
+    end
 end
 
-local function isBlocked(self, x, y)
-    if self.dungeon[y]
-        and self.dungeon[y][x]
-        and self.dungeon[y][x].type == "locked_door" then
-        return true
+local function isBlocked(self, x, y, inSpecialRoom)
+    local dungeon = inSpecialRoom and self.specialRoomDungeon or self.dungeon
+    local monsters = inSpecialRoom and self.specialRoomMonsters or self.monsters
+
+    if not dungeon[y] or not dungeon[y][x] then return true end
+
+    local t = dungeon[y][x].type
+    if t == "wall" or (t == "special_door" and not inSpecialRoom) then return true end
+
+    -- Check monsters
+    for _, monster in ipairs(monsters) do
+        if monster.x == x and monster.y == y then return true end
     end
-    return self.dungeonManager:isBlocked(self.dungeon, self.monsters, self.player, x, y)
+
+    -- Check player
+    if self.player.x == x and self.player.y == y then return true end
+
+    return false
 end
 
 local function generateDungeon(self)
-    local dungeon, monsters, items, visibleTiles, specialRooms = self.dungeonManager:generateDungeon(self.player)
+    local dungeon, monsters, items, visibleTiles, specialDoors = self.dungeonManager:generateDungeon(self.player)
 
     self.dungeon = dungeon
     self.monsters = monsters
     self.items = items
     self.visibleTiles = visibleTiles
-    self.specialRooms = specialRooms or {}
+    self.specialDoors = specialDoors or {}
 
+    updateFOV(self)
+end
+
+local function enterSpecialRoom(self, doorX, doorY)
+    -- Save return position and door
+    self.specialRoomReturnX = self.player.x
+    self.specialRoomReturnY = self.player.y
+    self.specialRoomDoorX = doorX
+    self.specialRoomDoorY = doorY
+
+    -- Generate special room
+    local specialDungeon, monsters, items, visibleTiles, exitX, exitY, room =
+        self.dungeonManager:generateSpecialRoom()
+
+    self.specialRoomDungeon = specialDungeon
+    self.specialRoomMonsters = monsters
+    self.specialRoomItems = items
+    self.specialRoomVisibleTiles = visibleTiles
+    self.specialRoomExitX = exitX
+    self.specialRoomExitY = exitY
+    self.specialRoom = room
+
+    -- Place player near the exit door in the special room
+    self.player.x = math_floor(room.x + room.w / 2)
+    self.player.y = math_floor(room.y + room.h / 2)
+
+    -- Set state
+    self.inSpecialRoom = true
+
+    addMessage(self, "You enter a mysterious chamber!")
+    self.sounds:play("unlock")
+
+    -- Make entire special room visible
+    for y = room.y, room.y + room.h do
+        for x = room.x, room.x + room.w do
+            if y >= 1 and y <= self.dungeonManager.DUNGEON_HEIGHT and
+                x >= 1 and x <= self.dungeonManager.DUNGEON_WIDTH then
+                self.specialRoomVisibleTiles[y][x] = true
+            end
+        end
+    end
+end
+
+local function leaveSpecialRoom(self)
+    if not self.inSpecialRoom then return end
+
+    -- Return player to original position (next to the special door)
+    self.player.x = self.specialRoomReturnX
+    self.player.y = self.specialRoomReturnY
+
+    -- Reset state
+    self.inSpecialRoom = false
+    self.specialRoomReturnX = nil
+    self.specialRoomReturnY = nil
+    self.specialRoomDoorX = nil
+    self.specialRoomDoorY = nil
+    self.specialRoomDungeon = nil
+    self.specialRoomMonsters = nil
+    self.specialRoomItems = nil
+    self.specialRoomVisibleTiles = nil
+    self.specialRoomExitX = nil
+    self.specialRoomExitY = nil
+    self.specialRoom = nil
+
+    addMessage(self, "You return to the dungeon.")
+    self.sounds:play("walk")
+
+    -- Update FOV to show main dungeon
     updateFOV(self)
 end
 
@@ -364,9 +519,12 @@ local function nextLevel(self)
     generateDungeon(self)
 end
 
-local function monsterTurns(self)
-    for i, monster in ipairs(self.monsters) do
-        if self.visibleTiles[monster.y][monster.x] then
+local function monsterTurns(self, inSpecialRoom)
+    local monsters = inSpecialRoom and self.specialRoomMonsters or self.monsters
+    local visibleTiles = inSpecialRoom and self.specialRoomVisibleTiles or self.visibleTiles
+
+    for i, monster in ipairs(monsters) do
+        if visibleTiles[monster.y][monster.x] then
             -- Simple AI: move toward player if visible
             local dx, dy = 0, 0
 
@@ -385,63 +543,14 @@ local function monsterTurns(self)
             local newX = monster.x + dx
             local newY = monster.y + dy
 
-            if not isBlocked(self, newX, newY) then
+            if not isBlocked(self, newX, newY, inSpecialRoom) then
                 monster.x = newX
                 monster.y = newY
             elseif newX == self.player.x and newY == self.player.y then
-                attackPlayer(self, i)
+                attackPlayer(self, i, inSpecialRoom)
             end
         end
     end
-end
-
-local function enterSpecialRoom(self, specialRoomData)
-    if not specialRoomData then return end
-
-    -- Save return position
-    self.specialRoomReturnX = self.player.x
-    self.specialRoomReturnY = self.player.y
-
-    -- Move player to the special room (center of the room)
-    local room = specialRoomData.room
-    self.player.x = math_floor(room.x + room.w / 2)
-    self.player.y = math_floor(room.y + room.h / 2)
-
-    -- Set state
-    self.inSpecialRoom = true
-
-    addMessage(self, "You enter the secret chamber!")
-    self.sounds:play("unlock")
-
-    -- Make entire special room visible and explored
-    for y = room.y, room.y + room.h do
-        for x = room.x, room.x + room.w do
-            if y >= 1 and y <= self.dungeonManager.DUNGEON_HEIGHT and
-                x >= 1 and x <= self.dungeonManager.DUNGEON_WIDTH then
-                self.visibleTiles[y][x] = true
-                self.exploredTiles[y][x] = true
-            end
-        end
-    end
-end
-
-local function leaveSpecialRoom(self)
-    if not self.inSpecialRoom then return end
-
-    -- Return player to original position
-    self.player.x = self.specialRoomReturnX
-    self.player.y = self.specialRoomReturnY
-
-    -- Reset state
-    self.inSpecialRoom = false
-    self.specialRoomReturnX = nil
-    self.specialRoomReturnY = nil
-
-    addMessage(self, "You leave the secret chamber.")
-    self.sounds:play("walk")
-
-    -- Update FOV to show main dungeon
-    updateFOV(self)
 end
 
 -- up, right, down, left
@@ -534,6 +643,21 @@ function Game.new(fontManager)
     instance.items = {}
     instance.visibleTiles = {}
     instance.exploredTiles = {}
+    instance.specialDoors = {}
+
+    -- Special room state
+    instance.inSpecialRoom = false
+    instance.specialRoomReturnX = nil
+    instance.specialRoomReturnY = nil
+    instance.specialRoomDoorX = nil
+    instance.specialRoomDoorY = nil
+    instance.specialRoomDungeon = nil
+    instance.specialRoomMonsters = nil
+    instance.specialRoomItems = nil
+    instance.specialRoomVisibleTiles = nil
+    instance.specialRoomExitX = nil
+    instance.specialRoomExitY = nil
+    instance.specialRoom = nil
 
     instance.screenShake = { intensity = 0, duration = 0, timer = 0, active = false }
     instance.buttonHover = nil
@@ -546,11 +670,6 @@ function Game.new(fontManager)
     instance.dungeonFont = nil
     instance.fonts = fontManager
 
-    -- Special room state
-    instance.inSpecialRoom = false
-    instance.specialRoomReturnX = nil
-    instance.specialRoomReturnY = nil
-
     local soundManager = SoundManager.new()
     instance.sounds = soundManager
 
@@ -562,21 +681,6 @@ function Game:tryOpenDoor() tryOpenDoor(self) end
 function Game:movePlayer(dx, dy)
     if self.gameOver then return end
 
-    -- If in special room, check if moving through the unlocked door
-    if self.inSpecialRoom then
-        local newX = self.player.x + dx
-        local newY = self.player.y + dy
-
-        -- Check if moving through the unlocked door (exit)
-        for _, specialRoomData in ipairs(self.specialRooms) do
-            local doorX, doorY = specialRoomData.doorX, specialRoomData.doorY
-            if newX == doorX and newY == doorY then
-                leaveSpecialRoom(self)
-                return
-            end
-        end
-    end
-
     local newX = self.player.x + dx
     local newY = self.player.y + dy
 
@@ -587,65 +691,121 @@ function Game:movePlayer(dx, dy)
         return
     end
 
-    -- Check for walls
-    if self.dungeon[newY][newX].type == "wall" then
-        addMessage(self, "You bump into a wall.")
-        self.sounds:play("bump")
-        return
-    end
+    if self.inSpecialRoom then
+        -- Special room movement logic
+        local tile = self.specialRoomDungeon[newY][newX]
 
-    -- Check for locked doors (prevent movement through them)
-    if self.dungeon[newY][newX].type == "locked_door" then
-        addMessage(self, "The door is locked.")
-        self.sounds:play("bump")
-        return
-    end
-
-    -- Check for monsters
-    local attackedMonster = nil
-    for i, monster in ipairs(self.monsters) do
-        if monster.x == newX and monster.y == newY then
-            self.sounds:play("attack")
-            attackMonster(self, i)
-            attackedMonster = monster
-            break
+        -- Check for walls
+        if tile.type == "wall" then
+            addMessage(self, "You bump into a wall.")
+            self.sounds:play("bump")
+            return
         end
-    end
 
-    -- Player attacked, don't move
-    if attackedMonster then return end
-
-    -- Check for stairs
-    if self.dungeon[newY][newX].type == "EXIT" then
-        nextLevel(self)
-        return
-    end
-
-    -- Check for items
-    local pickedUpItem = false
-    for i, item in ipairs(self.items) do
-        if item.x == newX and item.y == newY then
-            self.sounds:play("pickup")
-            pickupItem(self, i)
-            pickedUpItem = true
-            break
+        -- Check for special exit (back to main dungeon)
+        if tile.type == "special_exit" then
+            leaveSpecialRoom(self)
+            return
         end
+
+        -- Check for monsters in special room
+        local attackedMonster = nil
+        for i, monster in ipairs(self.specialRoomMonsters) do
+            if monster.x == newX and monster.y == newY then
+                self.sounds:play("attack")
+                attackMonster(self, i, true)
+                attackedMonster = monster
+                break
+            end
+        end
+
+        if attackedMonster then return end
+
+        -- Check for items in special room
+        local pickedUpItem = false
+        for i, item in ipairs(self.specialRoomItems) do
+            if item.x == newX and item.y == newY then
+                self.sounds:play("pickup")
+                pickupItem(self, i, true)
+                pickedUpItem = true
+                break
+            end
+        end
+
+        if not pickedUpItem then self.sounds:play("walk") end
+
+        self.player.x = newX
+        self.player.y = newY
+
+        updateFOV(self)
+        monsterTurns(self, true)
+        self.turn = self.turn + 1
+    else
+        -- Main dungeon movement logic
+        local tile = self.dungeon[newY][newX]
+
+        -- Check for walls
+        if tile.type == "wall" then
+            addMessage(self, "You bump into a wall.")
+            self.sounds:play("bump")
+            return
+        end
+
+        -- Check for special doors
+        if tile.type == "special_door" then
+            enterSpecialRoom(self, newX, newY)
+            return
+        end
+
+        -- Check for monsters
+        local attackedMonster = nil
+        for i, monster in ipairs(self.monsters) do
+            if monster.x == newX and monster.y == newY then
+                self.sounds:play("attack")
+                attackMonster(self, i, false)
+                attackedMonster = monster
+                break
+            end
+        end
+
+        if attackedMonster then return end
+
+        -- Check for stairs
+        if tile.type == "EXIT" then
+            nextLevel(self)
+            return
+        end
+
+        -- Check for items
+        local pickedUpItem = false
+        for i, item in ipairs(self.items) do
+            if item.x == newX and item.y == newY then
+                self.sounds:play("pickup")
+                pickupItem(self, i, false)
+                pickedUpItem = true
+                break
+            end
+        end
+
+        if not pickedUpItem then self.sounds:play("walk") end
+
+        self.player.x = newX
+        self.player.y = newY
+
+        updateFOV(self)
+        monsterTurns(self, false)
+        self.turn = self.turn + 1
     end
-
-    if not pickedUpItem then self.sounds:play("walk") end
-
-    self.player.x = newX
-    self.player.y = newY
-
-    updateFOV(self)
-    monsterTurns(self)
-    self.turn = self.turn + 1
 end
 
 function Game:waitTurn()
     addMessage(self, "You wait a moment...")
     self.turn = self.turn + 1
-    monsterTurns(self)
+    if self.inSpecialRoom then
+        monsterTurns(self, true)
+    else
+        monsterTurns(self, false)
+    end
 end
 
 function Game:rest()
@@ -654,7 +814,11 @@ function Game:rest()
     addMessage(self, "You rest and heal " .. heal .. " HP")
     self.sounds:play("heal")
     self.turn = self.turn + 1
-    monsterTurns(self)
+    if self.inSpecialRoom then
+        monsterTurns(self, true)
+    else
+        monsterTurns(self, false)
+    end
 end
 
 function Game:toggleInventory() self.showInventory = not self.showInventory end
@@ -682,7 +846,12 @@ function Game:draw()
     lg.push()
     lg.translate(offsetX, offsetY)
 
-    drawDungeon(self)
+    if self.inSpecialRoom then
+        drawSpecialRoom(self)
+    else
+        drawDungeon(self)
+    end
+
     drawUI(self)
 
     if self.showInventory then drawInventory(self) end
@@ -718,10 +887,21 @@ function Game:startNewGame(difficulty, character)
     self.difficulty = difficulty or "medium"
     self.character = character or "warrior"
 
+    -- Reset special room state
     self.inSpecialRoom = false
     self.specialRoomReturnX = nil
     self.specialRoomReturnY = nil
+    self.specialRoomDoorX = nil
+    self.specialRoomDoorY = nil
+    self.specialRoomDungeon = nil
+    self.specialRoomMonsters = nil
+    self.specialRoomItems = nil
+    self.specialRoomVisibleTiles = nil
+    self.specialRoomExitX = nil
+    self.specialRoomExitY = nil
+    self.specialRoom = nil
 
+    -- Set up player based on character class
     if self.character == "warrior" then
         self.player = {
             x = 1,
