@@ -2,68 +2,66 @@
 -- License: MIT
 -- Copyright (c) 2025 Jericho Crosby (Chalwk)
 
+local font_path = "assets/fonts/segoe-ui-symbol.ttf"
+local lg = love.graphics
+
 local FontManager = {}
 FontManager.__index = FontManager
 
-local font_path = "assets/fonts/segoe-ui-symbol.ttf"
-local lg = love.graphics
+local fonts = {
+    smallFont = 14,
+    mediumFont = 24,
+    largeFont = 48,
+    sectionFont = 20,
+    listFont = 18,
+}
 
 function FontManager.new()
     local instance = setmetatable({}, FontManager)
 
-    local success, font = pcall(function() return lg.newFont(font_path, 24) end)
+    instance.fonts = {}
+    instance.dynamicFonts = {}
 
-    if success then
-        instance.customFont = font
-        instance.customFont:setFilter("nearest", "nearest")
-        instance.fontCache = {}
-        print("Font 'NotoColorEmoji-Regular.ttf loaded successfully")
-    else
-        print("Font 'NotoColorEmoji-Regular.ttf' not found, using fallback")
-        instance.customFont = nil
-        instance.fontCache = {}
+    for name, size in pairs(fonts) do
+        local success, font = pcall(function() return lg.newFont(font_path, size) end)
+
+        if success and font then
+            instance.fonts[name] = font
+            instance.fonts[name]:setFilter("nearest", "nearest")
+        else
+            error("Failed to load font '" .. name .. "' with size " .. size .. ", using fallback")
+        end
     end
 
     return instance
 end
 
-function FontManager:getFont(size)
-    -- Check cache first
-    if self.fontCache[size] then return self.fontCache[size] end
+function FontManager:getFontOfSize(size)
+    -- Check if we already have this size cached
+    if self.dynamicFonts[size] then return self.dynamicFonts[size] end
 
-    if self.customFont then
-        -- Create new font at requested size and cache it
-        local font = lg.newFont(font_path, size)
+    -- Create new font of the specified size
+    local success, font = pcall(function() return lg.newFont(font_path, size) end)
+
+    if success and font then
         font:setFilter("nearest", "nearest")
-        self.fontCache[size] = font
+        self.dynamicFonts[size] = font
         return font
     else
-        -- Fallback to default font
-        local font = lg.newFont(size)
-        font:setFilter("nearest", "nearest")
-        self.fontCache[size] = font
-        return font
+        -- Fallback to medium font if creation fails
+        print("Warning: Failed to create font of size " .. size .. ", using medium font")
+        return self.fonts.mediumFont
     end
 end
 
-function FontManager:getSmallFont()
-    return self:getFont(14)
+function FontManager:setFont(fontOrName)
+    if type(fontOrName) == "string" then
+        lg.setFont(self.fonts[fontOrName])
+    elseif type(fontOrName) == "userdata" and fontOrName.setFilter then
+        lg.setFont(fontOrName)
+    end
 end
 
-function FontManager:getMediumFont()
-    return self:getFont(24)
-end
-
-function FontManager:getLargeFont()
-    return self:getFont(48)
-end
-
-function FontManager:getSectionFont()
-    return self:getFont(20)
-end
-
-function FontManager:getTitleFont()
-    return self:getFont(64)
-end
+function FontManager:getFont(name) return self.fonts[name] end
 
 return FontManager

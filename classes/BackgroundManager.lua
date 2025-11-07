@@ -28,8 +28,7 @@ local function initFloatingSymbols(self)
             rotationSpeed = (math_random() - 0.5) * 2,
             bobSpeed = math_random(1, 3),
             bobAmount = math_random(2, 8),
-            -- Cool dungeon symbols
-            char = math_random() > 0.5 and "█" or "·",
+            char = math_random() > 0.5 and "π" or "·",
             alpha = math_random(0.3, 0.7),
             isRevealed = math_random() > 0.7,
             isGhost = math_random() > 0.8,
@@ -60,18 +59,18 @@ local function initFloatingMonsters(self)
             alpha = math_random(0.1, 0.3),
             pulseSpeed = math_random(0.5, 1.5),
             pulsePhase = math_random() * math_pi * 2,
-            -- Cool monster symbols
             char = math_random() > 0.5 and "†" or "‡"
         })
     end
 end
 
-function BackgroundManager.new()
+function BackgroundManager.new(fontManager)
     local instance = setmetatable({}, BackgroundManager)
     instance.floatingSymbols = {}
     instance.floatingMonsters = {}
     instance.time = 0
     instance.pulseValue = 0
+    instance.fonts = fontManager
 
     initFloatingSymbols(instance)
     initFloatingMonsters(instance)
@@ -99,9 +98,7 @@ function BackgroundManager:update(dt)
         if symbol.y > 1050 then symbol.y = -50 end
 
         -- Occasionally change revealed state
-        if math_random() < 0.01 then
-            symbol.isRevealed = not symbol.isRevealed
-        end
+        if math_random() < 0.01 then symbol.isRevealed = not symbol.isRevealed end
     end
 
     -- Update floating monsters
@@ -135,6 +132,8 @@ function BackgroundManager:drawMenuBackground(screenWidth, screenHeight, time)
         lg.setColor(r, g, b, 0.8)
         lg.rectangle("fill", 0, y, screenWidth, 2)
     end
+
+    self.fonts:setFont("smallFont")
 
     -- Draw floating monsters
     for _, monster in ipairs(self.floatingMonsters) do

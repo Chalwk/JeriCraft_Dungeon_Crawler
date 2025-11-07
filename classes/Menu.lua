@@ -231,9 +231,11 @@ local function drawButton(self, button)
     lg.rectangle("line", button.x, button.y, button.width, button.height, 10)
 
     -- Button text with shadow
-    lg.setFont(self.mediumFont)
-    local textWidth = self.mediumFont:getWidth(button.text)
-    local textHeight = self.mediumFont:getHeight()
+    local font = self.fonts:getFont("mediumFont")
+    self.fonts:setFont(font)
+
+    local textWidth = font:getWidth(button.text)
+    local textHeight = font:getHeight()
 
     -- Text shadow
     lg.setColor(0, 0, 0, 0.5)
@@ -270,9 +272,13 @@ local function drawHelpButton(self)
 
     -- Question mark with pulse
     lg.setColor(1, 1, 1, pulse)
-    lg.setFont(self.mediumFont)
-    local textWidth = self.mediumFont:getWidth(button.text)
-    local textHeight = self.mediumFont:getHeight()
+
+    local font = self.fonts:getFont("mediumFont")
+    self.fonts:setFont(font)
+
+    local textWidth = font:getWidth(button.text)
+    local textHeight = font:getHeight()
+
     lg.print(button.text,
         button.x + (button.width - textWidth) / 2,
         button.y + (button.height - textHeight) / 2)
@@ -315,7 +321,8 @@ local function drawOptionsInterface(self)
     local startY = (self.screenHeight - totalSectionsHeight) / 2
 
     -- Draw section headers with icons
-    lg.setFont(self.sectionFont)
+    self.fonts:setFont("sectionFont")
+
     lg.setColor(0.8, 0.9, 1)
     lg.printf("Difficulty", 0, startY + 10, self.screenWidth, "center")
     lg.printf("Character Class", 0, startY + 90, self.screenWidth, "center")
@@ -357,12 +364,12 @@ local function drawHelpOverlay(self, screenWidth, screenHeight)
 
     -- Title with icon
     lg.setColor(1, 1, 1)
-    lg.setFont(self.largeFont) -- large font
+    self.fonts:setFont("largeFont")
     lg.printf("JeriCraft: Dungeon Crawler - How to Play", boxX, boxY + 25, boxWidth, "center")
 
     -- Help text with better formatting
     lg.setColor(0.9, 0.9, 0.9)
-    lg.setFont(self.smallFont)
+    self.fonts:setFont("smallFont")
 
     local lineHeight = 20
     for i, line in ipairs(helpText) do
@@ -386,13 +393,18 @@ local function drawDungeonTitle(self, screenWidth, screenHeight)
     lg.translate(centerX, centerY)
     lg.scale(1.6, 1.6)
 
+    local font = self.fonts:getFont("largeFont")
+    self.fonts:setFont(font)
+
+    local height_offset = 55
+
     -- Title shadow
     lg.setColor(0, 0, 0, 0.5)
-    lg.printf(self.title.text, -300 + 4, -self.titleFont:getHeight() / 2 + 4, 600, "center")
+    lg.printf(self.title.text, -300 + 4, -font:getHeight() / 2 + 4 - height_offset, 600, "center")
 
     -- Title main with glow
     lg.setColor(0.9, 0.2, 0.2, self.title.glow)
-    lg.printf(self.title.text, -300, -self.titleFont:getHeight() / 2, 600, "center")
+    lg.printf(self.title.text, -300, -font:getHeight() / 2 - height_offset, 600, "center")
     lg.pop()
 end
 
@@ -405,6 +417,8 @@ function Menu.new(fontManager)
     instance.character = "warrior"
     instance.title = {
         text = "JeriCraft: Dungeon Crawler",
+        subtitle =
+        "Explore dungeons, fight monsters, and find treasure!\nSurvive as long as you can in this dungeon crawler!",
         scale = 1,
         scaleDirection = 1,
         scaleSpeed = 0.4,
@@ -417,13 +431,7 @@ function Menu.new(fontManager)
     instance.showHelp = false
     instance.time = 0
     instance.buttonHover = nil
-
-    instance.fontManager = fontManager
-    instance.smallFont = instance.fontManager:getSmallFont()
-    instance.mediumFont = instance.fontManager:getMediumFont()
-    instance.largeFont = instance.fontManager:getLargeFont()
-    instance.sectionFont = instance.fontManager:getSectionFont()
-    instance.titleFont = instance.fontManager:getTitleFont()
+    instance.fonts = fontManager
 
     createMenuButtons(instance)
     createOptionsButtons(instance)
@@ -491,12 +499,9 @@ function Menu:draw(screenWidth, screenHeight, state)
             drawHelpOverlay(self, screenWidth, screenHeight)
         else
             drawMenuButtons(self)
-            -- Instructions
             lg.setColor(0.9, 0.9, 0.9, 0.8)
-            lg.setFont(self.smallFont)
-            lg.printf(
-                "Explore dungeons, fight monsters, and find treasure!\nSurvive as long as you can in this dungeon crawler!",
-                0, screenHeight / 2 - 350, screenWidth, "center")
+            self.fonts:setFont("mediumFont")
+            lg.printf(self.title.subtitle, 0, screenHeight / 2 - 350, screenWidth, "center")
 
             -- Draw help button
             drawHelpButton(self)
@@ -507,7 +512,7 @@ function Menu:draw(screenWidth, screenHeight, state)
 
     -- Copyright
     lg.setColor(1, 1, 1, 0.6)
-    lg.setFont(self.smallFont)
+    self.fonts:setFont("smallFont")
     lg.printf("© 2025 Jericho Crosby – JeriCraft: Dungeon Crawler", 10, screenHeight - 30, screenWidth - 20, "right")
 end
 

@@ -71,9 +71,9 @@ local function drawDungeon(self)
     local offsetY = self.dungeonOffsetY
 
     if not self.dungeonFont or self.dungeonFont:getHeight() ~= tileSize then
-        self.dungeonFont = self.fontManager:getFont(tileSize)
+        self.dungeonFont = self.fonts:getFontOfSize(tileSize)
     end
-    lg.setFont(self.dungeonFont)
+    self.fonts:setFont(self.dungeonFont)
 
     -- Draw dungeon
     for y = 1, self.dungeonManager.DUNGEON_HEIGHT do
@@ -133,12 +133,12 @@ local function drawUI(self)
     local y = UI_PADDING
 
     -- Header
-    lg.setFont(self.mediumFont)
+    self.fonts:setFont("mediumFont")
     lg.print("STATUS", x, y)
     y = y + 28
 
     -- Player stats
-    lg.setFont(self.smallFont)
+    self.fonts:setFont("smallFont")
     lg.print("Level: " .. self.dungeonLevel, x, y); y = y + 24
     lg.print("HP: " .. self.player.hp .. "/" .. self.player.maxHp, x, y); y = y + 24
     lg.print("Atk: " .. self.player.attack, x, y); y = y + 20
@@ -150,9 +150,9 @@ local function drawUI(self)
     -- Controls block
     lg.setColor(0.75, 0.75, 0.75)
 
-    lg.setFont(self.mediumFont)
+    self.fonts:setFont("mediumFont")
     lg.print("CONTROLS", x, y); y = y + 18
-    lg.setFont(self.smallFont)
+    self.fonts:setFont("smallFont")
 
     lg.print("Move: Arrow / WASD", x, y); y = y + 18
     lg.print("Wait: Space", x, y); y = y + 18
@@ -184,7 +184,8 @@ local function drawInventory(self)
     lg.rectangle("line", panelX, panelY, panelW, panelH, 8, 8)
 
     -- Title
-    lg.setFont(self.titleFont)
+    self.fonts:setFont("titleFont")
+
     lg.setColor(1, 0.9, 0.5)
     lg.printf("INVENTORY", panelX, panelY + 15, panelW, "center")
 
@@ -193,7 +194,7 @@ local function drawInventory(self)
     lg.rectangle("fill", panelX + 20, panelY + 55, panelW - 40, 1)
 
     -- Inventory list area
-    lg.setFont(self.listFont)
+    self.fonts:setFont("listFont")
 
     if #self.player.inventory == 0 then
         lg.setColor(0.8, 0.8, 0.8)
@@ -220,7 +221,7 @@ local function drawInventory(self)
     end
 
     -- Footer info
-    lg.setFont(self.smallFont)
+    self.fonts:setFont("smallFont")
     lg.setColor(0.75, 0.75, 0.75, 0.8)
     lg.printf("Press I to close", panelX, panelY + panelH - 35, panelW, "center")
 end
@@ -229,7 +230,7 @@ local function drawGameOver(self)
     lg.setColor(0, 0, 0, 0.7)
     lg.rectangle("fill", 0, 0, self.screenWidth, self.screenHeight)
 
-    lg.setFont(self.largeFont)
+    self.fonts:setFont("largeFont")
 
     if self.won then
         lg.setColor(0.2, 0.8, 0.2)
@@ -240,7 +241,7 @@ local function drawGameOver(self)
     end
 
     lg.setColor(1, 1, 1)
-    lg.setFont(self.mediumFont)
+    self.fonts:setFont("mediumFont")
     lg.printf("You reached dungeon level " .. self.dungeonLevel,
         0, self.screenHeight / 2, self.screenWidth, "center")
     lg.printf("Click anywhere to continue",
@@ -415,16 +416,8 @@ function Game.new(fontManager)
     instance.tileSize = 16
     instance.dungeonOffsetX = UI_WIDTH + 10
     instance.dungeonOffsetY = 50
-
-    instance.fontManager = fontManager
     instance.dungeonFont = nil
-
-    instance.smallFont = instance.fontManager:getSmallFont()
-    instance.mediumFont = instance.fontManager:getMediumFont()
-    instance.largeFont = instance.fontManager:getLargeFont()
-    instance.sectionFont = instance.fontManager:getSectionFont()
-    instance.titleFont = instance.fontManager:getTitleFont()
-    instance.listFont = instance.fontManager:getFont(18)
+    instance.fonts = fontManager
 
     local soundManager = SoundManager.new()
     instance.sounds = soundManager

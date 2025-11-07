@@ -221,7 +221,7 @@ function love.load()
 
     game = Game.new(fontManager)
     menu = Menu.new(fontManager)
-    backgroundManager = BackgroundManager.new()
+    backgroundManager = BackgroundManager.new(fontManager)
 
     menu:setScreenSize(screenWidth, screenHeight)
     game:setScreenSize(screenWidth, screenHeight)
