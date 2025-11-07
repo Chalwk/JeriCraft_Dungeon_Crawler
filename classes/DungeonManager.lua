@@ -18,12 +18,13 @@ local DUNGEON_HEIGHT = 40
 local ROOM_MIN_SIZE = 4
 local ROOM_MAX_SIZE = 10
 local MAX_ROOMS = 20
+local SPECIAL_ROOM_CHANCE = 0.9 -- Default: 0.3 (30%) chance a room has a special door
 
 -- ASCII characters for display
 local TILES = {
     WALL = "█",
     FLOOR = "•",
-    DOOR = "π",
+    DOOR = "╬",
     STAIRS_UP = "⮝",
     STAIRS_DOWN = "⮟",
     PLAYER = "☺",
@@ -33,7 +34,10 @@ local TILES = {
     ARMOR = "🛡",
     POTION = "♣",
     SCROLL = "⁂",
-    TRAP = "⌂"
+    TRAP = "⌂",
+    KEY = "⚷",
+    LOCKED_DOOR = "🔒",
+    UNLOCKED_DOOR = "🚪"
 }
 
 local MONSTERS = {
@@ -46,12 +50,13 @@ local MONSTERS = {
 }
 
 local ITEMS = {
-    { char = TILES.GOLD,   name = "Gold",           color = { 1, 0.8, 0.2 } },
-    { char = TILES.FOOD,   name = "Food",           color = { 0.9, 0.7, 0.3 } },
-    { char = TILES.WEAPON, name = "Dagger",         color = { 0.8, 0.8, 0.8 } },
-    { char = TILES.ARMOR,  name = "Leather Armor",  color = { 0.6, 0.4, 0.2 } },
-    { char = TILES.POTION, name = "Healing Potion", color = { 1, 0.2, 0.2 } },
-    { char = TILES.SCROLL, name = "Scroll",         color = { 0.8, 0.8, 1 } }
+    { char = TILES.GOLD,   name = "Gold",           color = { 1, 0.8, 0.2 } },   -- Bright gold/yellow-orange
+    { char = TILES.FOOD,   name = "Food",           color = { 0.9, 0.7, 0.3 } }, -- Warm golden-brown, slightly softer than gold
+    { char = TILES.WEAPON, name = "Dagger",         color = { 0.8, 0.8, 0.8 } }, -- Light gray/silver, metallic feel
+    { char = TILES.ARMOR,  name = "Leather Armor",  color = { 0.6, 0.4, 0.2 } }, -- Brown, earthy leather tone
+    { char = TILES.POTION, name = "Healing Potion", color = { 1, 0.2, 0.2 } },   -- Bright red, signals health/danger
+    { char = TILES.SCROLL, name = "Scroll",         color = { 0.8, 0.8, 1 } },   -- Pale blue, cool and magical
+    { char = TILES.KEY,    name = "Key",            color = { 1, 1, 0 } }        -- Pure yellow, stands out as collectible
 }
 
 local function roomsIntersect(room1, room2)
@@ -77,8 +82,10 @@ local function createTunnel(dungeon, room1, room2)
 end
 
 local function isBlocked(dungeon, monsters, player, x, y)
-    -- Check if position is blocked by wall
-    if dungeon[y][x].type == "wall" then return true end
+    -- Check if position is blocked by wall or locked door
+    if dungeon[y][x].type == "wall" or dungeon[y][x].type == "locked_door" then
+        return true
+    end
 
     -- Check monsters
     for _, monster in ipairs(monsters) do
@@ -91,9 +98,9 @@ local function isBlocked(dungeon, monsters, player, x, y)
     return false
 end
 
-local function placeEntities(dungeon, monsters, items, player, room)
-    -- Place monsters
-    local numMonsters = math_random(0, 2)
+local function placeEntities(dungeon, monsters, items, player, room, isSpecialRoom)
+    -- Place monsters (more monsters in special rooms)
+    local numMonsters = math_random(0, isSpecialRoom and 3 or 2)
     for _ = 1, numMonsters do
         local x = math_random(room.x + 1, room.x + room.w - 2)
         local y = math_random(room.y + 1, room.y + room.h - 2)
@@ -114,14 +121,31 @@ local function placeEntities(dungeon, monsters, items, player, room)
         end
     end
 
-    -- Place items
-    local numItems = math_random(0, 2)
+    -- Place items (better loot in special rooms)
+    local numItems = math_random(isSpecialRoom and 2 or 0, isSpecialRoom and 4 or 2)
     for _ = 1, numItems do
         local x = math_random(room.x + 1, room.x + room.w - 2)
         local y = math_random(room.y + 1, room.y + room.h - 2)
 
         if not isBlocked(dungeon, monsters, player, x, y) then
-            local item = ITEMS[math_random(#ITEMS)]
+            local item
+            if isSpecialRoom then
+                -- Better loot in special rooms
+                local specialItems = { TILES.GOLD, TILES.POTION, TILES.WEAPON, TILES.ARMOR }
+                item = ITEMS[math_random(#ITEMS)]
+                -- Increase chance for good items
+                if math_random() > 0.5 then
+                    for _, specialItem in ipairs(ITEMS) do
+                        if specialItem.char == specialItems[math_random(#specialItems)] then
+                            item = specialItem
+                            break
+                        end
+                    end
+                end
+            else
+                item = ITEMS[math_random(#ITEMS)]
+            end
+
             table_insert(items, {
                 x = x,
                 y = y,
@@ -141,11 +165,84 @@ local function createRoom(dungeon, room)
     end
 end
 
+local function createSpecialRoom(dungeon, connectedRoom)
+    -- Create a smaller special room adjacent to the connected room
+    local w = math_random(3, 6)
+    local h = math_random(3, 6)
+
+    -- Try different positions around the connected room
+    local positions = {
+        { x = connectedRoom.x + connectedRoom.w + 1, y = connectedRoom.y,                       w = w, h = h, dir = "right" },  -- right
+        { x = connectedRoom.x - w - 1,               y = connectedRoom.y,                       w = w, h = h, dir = "left" },   -- left
+        { x = connectedRoom.x,                       y = connectedRoom.y + connectedRoom.h + 1, w = w, h = h, dir = "bottom" }, -- bottom
+        { x = connectedRoom.x,                       y = connectedRoom.y - h - 1,               w = w, h = h, dir = "top" }     -- top
+    }
+
+    -- Shuffle positions to try them in random order
+    for i = #positions, 2, -1 do
+        local j = math_random(i)
+        positions[i], positions[j] = positions[j], positions[i]
+    end
+
+    for _, pos in ipairs(positions) do
+        -- Check if room fits within dungeon bounds
+        if pos.x >= 2 and pos.x + pos.w <= DUNGEON_WIDTH - 1 and
+            pos.y >= 2 and pos.y + pos.h <= DUNGEON_HEIGHT - 1 then
+            -- Check for overlaps - only check the room area itself, not the borders
+            local overlaps = false
+            for checkY = pos.y, pos.y + pos.h do
+                for checkX = pos.x, pos.x + pos.w do
+                    if dungeon[checkY] and dungeon[checkY][checkX] and
+                        dungeon[checkY][checkX].type == "floor" then
+                        overlaps = true
+                        break
+                    end
+                end
+                if overlaps then break end
+            end
+
+            if not overlaps then
+                createRoom(dungeon, pos)
+
+                -- Add a locked door between the rooms
+                local doorX, doorY
+                if pos.dir == "right" then -- right side
+                    doorX = connectedRoom.x + connectedRoom.w
+                    doorY = math_floor(connectedRoom.y + connectedRoom.h / 2)
+                elseif pos.dir == "left" then -- left side
+                    doorX = connectedRoom.x - 1
+                    doorY = math_floor(connectedRoom.y + connectedRoom.h / 2)
+                elseif pos.dir == "bottom" then -- bottom
+                    doorX = math_floor(connectedRoom.x + connectedRoom.w / 2)
+                    doorY = connectedRoom.y + connectedRoom.h
+                else -- top
+                    doorX = math_floor(connectedRoom.x + connectedRoom.w / 2)
+                    doorY = connectedRoom.y - 1
+                end
+
+                -- Make sure door position is valid
+                if doorX >= 1 and doorX <= DUNGEON_WIDTH and doorY >= 1 and doorY <= DUNGEON_HEIGHT then
+                    dungeon[doorY][doorX] = {
+                        type = "locked_door",
+                        char = TILES.LOCKED_DOOR,
+                        color = { 0.8, 0.6, 0.2 }, -- Bronze color for locked door
+                        connectedRoom = pos
+                    }
+
+                    return pos, doorX, doorY
+                end
+            end
+        end
+    end
+    return nil
+end
+
 function DungeonManager:generateDungeon(player)
     local dungeon = {}
     local monsters = {}
     local items = {}
     local visibleTiles = {}
+    local specialRooms = {} -- Track special rooms and their doors
 
     -- Initialize dungeon with walls
     for y = 1, DUNGEON_HEIGHT do
@@ -196,8 +293,40 @@ function DungeonManager:generateDungeon(player)
                 createTunnel(dungeon, prevRoom, newRoom)
             end
 
-            -- Place monsters and items
-            placeEntities(dungeon, monsters, items, player, newRoom)
+            -- Place monsters and items in main room
+            placeEntities(dungeon, monsters, items, player, newRoom, false)
+
+            -- Sometimes add a special room with locked door
+            if #rooms > 0 and math_random() < SPECIAL_ROOM_CHANCE then
+                print("Attempting to create special room for room #" .. #rooms)
+                local specialRoom, doorX, doorY = createSpecialRoom(dungeon, newRoom)
+                print("specialRoom:", specialRoom, "door at:", doorX, doorY)
+                if specialRoom then
+                    -- Place better loot and monsters in special room
+                    placeEntities(dungeon, monsters, items, player, specialRoom, true)
+                    -- Add a key somewhere in the dungeon (not in the special room)
+                    local keyRoom = rooms[math_random(#rooms)]
+                    local keyX = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
+                    local keyY = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
+
+                    if not isBlocked(dungeon, monsters, player, keyX, keyY) then
+                        table_insert(items, {
+                            x = keyX,
+                            y = keyY,
+                            char = TILES.KEY,
+                            color = { 1, 1, 0 }, -- Yellow
+                            name = "Key"
+                        })
+                    end
+
+                    -- Store door information
+                    table_insert(specialRooms, {
+                        doorX = doorX,
+                        doorY = doorY,
+                        room = specialRoom
+                    })
+                end
+            end
 
             table_insert(rooms, newRoom)
         end
@@ -211,7 +340,7 @@ function DungeonManager:generateDungeon(player)
         dungeon[sy][sx] = { type = "stairs_down", char = TILES.STAIRS_DOWN, color = { 0.8, 0.8, 0.2 } }
     end
 
-    return dungeon, monsters, items, visibleTiles
+    return dungeon, monsters, items, visibleTiles, specialRooms
 end
 
 function DungeonManager:updateFOV(player, visibleTiles, exploredTiles)

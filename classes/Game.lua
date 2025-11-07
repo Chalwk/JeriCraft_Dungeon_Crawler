@@ -310,6 +310,9 @@ local function pickupItem(self, itemIndex)
         local heal = math_random(5, 10)
         self.player.hp = math_min(self.player.maxHp, self.player.hp + heal)
         addMessage(self, "You drink a healing potion and restore " .. heal .. " HP!")
+    elseif item.char == self.dungeonManager.TILES.KEY then
+        table_insert(self.player.inventory, item.name)
+        addMessage(self, "You pick up a key! This might unlock something...")
     else
         table_insert(self.player.inventory, item.name)
         addMessage(self, "You pick up " .. item.name)
@@ -334,16 +337,22 @@ local function updateFOV(self)
 end
 
 local function isBlocked(self, x, y)
+    if self.dungeon[y]
+        and self.dungeon[y][x]
+        and self.dungeon[y][x].type == "locked_door" then
+        return true
+    end
     return self.dungeonManager:isBlocked(self.dungeon, self.monsters, self.player, x, y)
 end
 
 local function generateDungeon(self)
-    local dungeon, monsters, items, visibleTiles = self.dungeonManager:generateDungeon(self.player)
+    local dungeon, monsters, items, visibleTiles, specialRooms = self.dungeonManager:generateDungeon(self.player)
 
     self.dungeon = dungeon
     self.monsters = monsters
     self.items = items
     self.visibleTiles = visibleTiles
+    self.specialRooms = specialRooms or {}
 
     updateFOV(self)
 end
@@ -384,6 +393,56 @@ local function monsterTurns(self)
             end
         end
     end
+end
+
+-- up, right, down, left
+local directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } }
+local function tryOpenDoor(self)
+    for _, dir in ipairs(directions) do
+        local checkX = self.player.x + dir[1]
+        local checkY = self.player.y + dir[2]
+
+        -- Check bounds
+        if checkX >= 1 and checkX <= self.dungeonManager.DUNGEON_WIDTH and
+            checkY >= 1 and checkY <= self.dungeonManager.DUNGEON_HEIGHT then
+            local tile = self.dungeon[checkY][checkX]
+
+            if tile.type == "locked_door" then
+                -- Check if player has key
+                local hasKey = false
+                for i, itemName in ipairs(self.player.inventory) do
+                    if itemName == "Key" then
+                        hasKey = true
+                        -- Remove key from inventory
+                        table_remove(self.player.inventory, i)
+                        break
+                    end
+                end
+
+                if hasKey then
+                    -- Unlock the door
+                    tile.type = "floor"
+                    tile.char = self.dungeonManager.TILES.UNLOCKED_DOOR
+                    tile.color = { 0.7, 0.7, 0.7 } -- Gray for unlocked door
+
+                    addMessage(self, "You unlock the door with the key!")
+                    self.sounds:play("unlock")
+
+                    -- Reveal the special room
+                    updateFOV(self)
+                else
+                    addMessage(self, "The door is locked. You need a key to open it.")
+                    self.sounds:play("locked")
+                end
+                return
+            elseif tile.type == "unlocked_door" then
+                addMessage(self, "The door is already unlocked.")
+                return
+            end
+        end
+    end
+
+    addMessage(self, "There's no door nearby to interact with.")
 end
 
 function Game.new(fontManager)
@@ -443,6 +502,8 @@ function Game.new(fontManager)
 
     return instance
 end
+
+function Game:tryOpenDoor() tryOpenDoor(self) end
 
 function Game:movePlayer(dx, dy)
     if self.gameOver then return end

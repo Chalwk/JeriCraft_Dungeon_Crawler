@@ -16,7 +16,9 @@ function SoundManager.new()
             level_up = love.audio.newSource("assets/sounds/level_up.mp3", "static"),
             bump = love.audio.newSource("assets/sounds/bump.mp3", "static"),
             next_level = love.audio.newSource("assets/sounds/next_level.mp3", "static"),
-            heal = love.audio.newSource("assets/sounds/heal.mp3", "static")
+            heal = love.audio.newSource("assets/sounds/heal.mp3", "static"),
+            unlock = love.audio.newSource("assets/sounds/unlock.mp3", "static"),
+            locked = love.audio.newSource("assets/sounds/locked.mp3", "static")
         }
     }, SoundManager)
 

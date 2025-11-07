@@ -347,6 +347,8 @@ function love.keypressed(key)
             game:rest()
         elseif key == "i" then
             game:toggleInventory()
+        elseif key == "e" or key == "return" then
+            game:tryOpenDoor()
         end
     end
 end
