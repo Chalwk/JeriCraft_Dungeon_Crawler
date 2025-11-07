@@ -14,6 +14,7 @@ local math_random = love.math.random
 
 local SoundManager = require("classes.SoundManager")
 local DungeonManager = require("classes.DungeonManager")
+local ItemManager = require("classes.ItemManager")
 
 local Game = {}
 Game.__index = Game
@@ -650,8 +651,8 @@ function Game.new(fontManager)
     instance.messageLog = {}
     instance.showInventory = false
 
-    -- Initialize DungeonManager
-    instance.dungeonManager = DungeonManager.new()
+    instance.itemManager = ItemManager.new()
+    instance.dungeonManager = DungeonManager.new(ItemManager)
 
     -- Player state
     instance.player = {
@@ -854,7 +855,34 @@ function Game:rest()
     end
 end
 
-function Game:toggleInventory() self.showInventory = not self.showInventory end
+-- Replace your current toggleInventory function with:
+function Game:toggleInventory()
+    self.showInventory = not self.showInventory
+    if self.showInventory then
+        self.selectedItem = 1
+    end
+end
+
+function Game:useSelectedItem()
+    if not self.showInventory or not self.selectedItem then return end
+
+    local itemName = self.player.inventory[self.selectedItem]
+    if not itemName then return end
+
+    local result = self.itemManager:useItem(itemName, self.player, self)
+
+    -- Remove the item from inventory after use (except for equipment)
+    if not self.itemManager:isEquipment(itemName) then
+        table.remove(self.player.inventory, self.selectedItem)
+        if #self.player.inventory == 0 then
+            self.showInventory = false
+        else
+            self.selectedItem = math_min(self.selectedItem, #self.player.inventory)
+        end
+    end
+
+    addMessage(self, result)
+end
 
 function Game:setGameOver(won)
     self.gameOver = true
@@ -896,6 +924,11 @@ end
 
 function Game:update(dt)
     self.time = self.time + dt
+
+    local expiredEffects = self.itemManager:updateEffects(self.player, self.turn)
+    for _, effectName in ipairs(expiredEffects) do
+        addMessage(self, effectName .. " effect has worn off!")
+    end
 
     -- Update screen shake
     if self.screenShake.active then

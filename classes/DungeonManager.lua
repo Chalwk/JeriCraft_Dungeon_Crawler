@@ -54,16 +54,6 @@ local MONSTERS = {
     { char = "•", name = "Spider", color = { 0.5, 0.4, 0.6 }, hp = 4, attack = 2, xp = 4 }
 }
 
-local ITEMS = {
-    { char = TILES.GOLD,   name = "Gold",           color = { 1, 0.8, 0.2 } },
-    { char = TILES.FOOD,   name = "Food",           color = { 0.9, 0.7, 0.3 } },
-    { char = TILES.WEAPON, name = "Dagger",         color = { 0.8, 0.8, 0.8 } },
-    { char = TILES.ARMOR,  name = "Leather Armor",  color = { 0.6, 0.4, 0.2 } },
-    { char = TILES.POTION, name = "Healing Potion", color = { 1, 0.2, 0.2 } },
-    { char = TILES.SCROLL, name = "Scroll",         color = { 0.8, 0.8, 1 } },
-    { char = TILES.KEY,    name = "Key",            color = { 1, 1, 0 } }
-}
-
 local function roomsIntersect(room1, room2)
     return room1.x <= room2.x + room2.w + 1
         and room1.x + room1.w + 1 >= room2.x
@@ -86,8 +76,20 @@ local function createTunnel(dungeon, room1, room2)
     end
 end
 
+local function getBasicItemDefinitions()
+    -- Define basic items that should appear in regular rooms
+    return {
+        { char = TILES.GOLD,   name = "Gold",           color = { 1, 0.8, 0.2 } },
+        { char = TILES.FOOD,   name = "Food",           color = { 0.9, 0.7, 0.3 } },
+        { char = TILES.WEAPON, name = "Dagger",         color = { 0.8, 0.8, 0.8 } },
+        { char = TILES.ARMOR,  name = "Leather Armor",  color = { 0.6, 0.4, 0.2 } },
+        { char = TILES.POTION, name = "Healing Potion", color = { 1, 0.2, 0.2 } },
+        { char = TILES.SCROLL, name = "Scroll",         color = { 0.8, 0.8, 1 } },
+        { char = TILES.KEY,    name = "Key",            color = { 1, 1, 0 } }
+    }
+end
+
 local function placeEntities(self, dungeon, monsters, items, player, room, isSpecialRoom)
-    -- Place monsters (more monsters in special rooms)
     local numMonsters = math_random(0, isSpecialRoom and 3 or 2)
     for _ = 1, numMonsters do
         local x = math_random(room.x + 1, room.x + room.w - 2)
@@ -109,7 +111,7 @@ local function placeEntities(self, dungeon, monsters, items, player, room, isSpe
         end
     end
 
-    -- Place items (better loot in special rooms)
+    -- Place items - now using ItemManager for all item definitions
     local numItems = math_random(isSpecialRoom and 2 or 0, isSpecialRoom and 4 or 2)
     for _ = 1, numItems do
         local x = math_random(room.x + 1, room.x + room.w - 2)
@@ -117,21 +119,30 @@ local function placeEntities(self, dungeon, monsters, items, player, room, isSpe
 
         if not self:isBlocked(dungeon, monsters, player, x, y) then
             local item
+
             if isSpecialRoom then
-                -- Better loot in special rooms
-                local specialItems = { TILES.GOLD, TILES.POTION, TILES.WEAPON, TILES.ARMOR }
-                item = ITEMS[math_random(#ITEMS)]
-                -- Increase chance for good items
-                if math_random() > 0.5 then
-                    for _, specialItem in ipairs(ITEMS) do
-                        if specialItem.char == specialItems[math_random(#specialItems)] then
-                            item = specialItem
-                            break
-                        end
-                    end
+                -- Better loot in special rooms - use ItemManager for enhanced items
+                local enhancedItemName = self.itemManager:getRandomEnhancedItem()
+                local itemDefinition = self.itemManager:getItemDefinition(enhancedItemName)
+
+                if itemDefinition then
+                    item = {
+                        char = itemDefinition.char or TILES.SCROLL,
+                        name = enhancedItemName,
+                        color = itemDefinition.color or { 0.8, 0.6, 0.2 }
+                    }
+                else
+                    -- Fallback if ItemManager doesn't have definition
+                    item = {
+                        char = TILES.SCROLL,
+                        name = enhancedItemName,
+                        color = { 0.8, 0.6, 0.2 } -- Gold color for special items
+                    }
                 end
             else
-                item = ITEMS[math_random(#ITEMS)]
+                -- Regular rooms use basic items
+                local basicItems = getBasicItemDefinitions()
+                item = basicItems[math_random(#basicItems)]
             end
 
             table_insert(items, {
@@ -146,7 +157,7 @@ local function placeEntities(self, dungeon, monsters, items, player, room, isSpe
 end
 
 local function placeSpecialKey(self, dungeon, items, monsters, player, rooms)
-    if #rooms < 2 then return end  -- Need at least 2 rooms
+    if #rooms < 2 then return end -- Need at least 2 rooms
 
     -- Choose a random room (not the first room where player starts)
     local keyRoomIndex = math_random(2, #rooms)
@@ -163,7 +174,7 @@ local function placeSpecialKey(self, dungeon, items, monsters, player, rooms)
                 x = x,
                 y = y,
                 char = TILES.KEY,
-                color = { 1, 0.8, 0 },  -- Gold color
+                color = { 1, 0.8, 0 }, -- Gold color
                 name = "Special Key"
             })
             return true
@@ -433,17 +444,18 @@ function DungeonManager:isBlocked(dungeon, monsters, player, x, y)
     return false
 end
 
-function DungeonManager.new()
+function DungeonManager.new(ItemManager)
     local instance = setmetatable({}, DungeonManager)
     instance.TILES = TILES
     instance.MONSTERS = MONSTERS
-    instance.ITEMS = ITEMS
     instance.DUNGEON_WIDTH = DUNGEON_WIDTH
     instance.DUNGEON_HEIGHT = DUNGEON_HEIGHT
     instance.ROOM_MIN_SIZE = ROOM_MIN_SIZE
     instance.ROOM_MAX_SIZE = ROOM_MAX_SIZE
     instance.MAX_ROOMS = MAX_ROOMS
     instance.exploredTiles = {}
+
+    instance.itemManager = ItemManager
     return instance
 end
 

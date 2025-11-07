@@ -10,6 +10,7 @@ local BackgroundManager = require("classes.BackgroundManager")
 local math_sin = math.sin
 local math_cos = math.cos
 local math_min = math.min
+local math_max = math.max
 local math_pi = math.pi
 local math_floor = math.floor
 local table_insert = table.insert
@@ -333,6 +334,21 @@ function love.keypressed(key)
         love.window.setFullscreen(not fullscreen)
     elseif gameState == "playing" and not game:isGameOver() then
         -- Movement keys
+
+        if key == "i" then
+            game:toggleInventory()
+            return
+        elseif game.showInventory then
+            if key == "up" then
+                game.selectedItem = game.selectedItem and math_max(1, game.selectedItem - 1) or 1
+            elseif key == "down" then
+                game.selectedItem = game.selectedItem and math_min(#game.player.inventory, game.selectedItem + 1) or 1
+            elseif key == "return" then
+                game:useSelectedItem()
+            end
+            return
+        end
+
         if key == "up" or key == "w" then
             game:movePlayer(0, -1)
         elseif key == "down" or key == "s" then
@@ -345,8 +361,6 @@ function love.keypressed(key)
             game:waitTurn()
         elseif key == "r" then
             game:rest()
-        elseif key == "i" then
-            game:toggleInventory()
         elseif key == "e" or key == "return" then
             game:tryOpenDoor()
         end
