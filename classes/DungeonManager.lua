@@ -19,7 +19,7 @@ local DUNGEON_HEIGHT = 40
 local ROOM_MIN_SIZE = 4
 local ROOM_MAX_SIZE = 10
 local MAX_ROOMS = 20
-local SPECIAL_ROOM_CHANCE = 1                -- 30% chance a room is special (1 for debugging)
+local SPECIAL_ROOM_CHANCE = 1 -- 30% chance a room is special (1 for debugging)
 local FLOOR_COLOR = { 0.35, 0.35, 0.35, 0.3 }
 local SPECIAL_WALL_COLOR = { 0.6, 0.3, 0.6 } -- Purple walls for special rooms
 
@@ -158,9 +158,95 @@ local function placeEntities(dungeon, monsters, items, player, room, isSpecialRo
     end
 end
 
-local function createRoom(dungeon, room, isSpecialRoom)
-    local wallColor = isSpecialRoom and SPECIAL_WALL_COLOR or { 0.3, 0.3, 0.5 }
+local function createSpecialRoom(dungeon, specialRoom, connectedRoom)
+    -- Create solid walls around the entire room first
+    for y = specialRoom.y - 1, specialRoom.y + specialRoom.h + 1 do
+        for x = specialRoom.x - 1, specialRoom.x + specialRoom.w + 1 do
+            if y == specialRoom.y - 1 or y == specialRoom.y + specialRoom.h + 1 or
+               x == specialRoom.x - 1 or x == specialRoom.x + specialRoom.w + 1 then
+                if dungeon[y] and dungeon[y][x] then
+                    dungeon[y][x] = { type = "wall", char = TILES.WALL, color = SPECIAL_WALL_COLOR }
+                end
+            end
+        end
+    end
 
+    -- Now create the floor
+    for y = specialRoom.y, specialRoom.y + specialRoom.h do
+        for x = specialRoom.x, specialRoom.x + specialRoom.w do
+            dungeon[y][x] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
+        end
+    end
+
+    -- Find the best wall for the door (the one facing the connected room)
+    local connectedCenterX = math_floor(connectedRoom.x + connectedRoom.w / 2)
+    local connectedCenterY = math_floor(connectedRoom.y + connectedRoom.h / 2)
+    local roomCenterX = math_floor(specialRoom.x + specialRoom.w / 2)
+    local roomCenterY = math_floor(specialRoom.y + specialRoom.h / 2)
+
+    local doorX, doorY
+
+    -- Determine which wall is closest to the connected room
+    if math_abs(roomCenterX - connectedCenterX) > math_abs(roomCenterY - connectedCenterY) then
+        -- Horizontal connection
+        if roomCenterX > connectedCenterX then
+            -- Door on left wall
+            doorX = specialRoom.x - 1
+            doorY = math_random(specialRoom.y + 1, specialRoom.y + specialRoom.h - 1)
+        else
+            -- Door on right wall
+            doorX = specialRoom.x + specialRoom.w + 1
+            doorY = math_random(specialRoom.y + 1, specialRoom.y + specialRoom.h - 1)
+        end
+    else
+        -- Vertical connection
+        if roomCenterY > connectedCenterY then
+            -- Door on top wall
+            doorX = math_random(specialRoom.x + 1, specialRoom.x + specialRoom.w - 1)
+            doorY = specialRoom.y - 1
+        else
+            -- Door on bottom wall
+            doorX = math_random(specialRoom.x + 1, specialRoom.x + specialRoom.w - 1)
+            doorY = specialRoom.y + specialRoom.h + 1
+        end
+    end
+
+    -- Place the locked door
+    if doorX >= 1 and doorX <= DUNGEON_WIDTH and doorY >= 1 and doorY <= DUNGEON_HEIGHT then
+        dungeon[doorY][doorX] = {
+            type = "locked_door",
+            char = TILES.LOCKED_DOOR,
+            color = { 0.8, 0.6, 0.2 },
+            connectedRoom = specialRoom
+        }
+
+        -- Create a direct corridor from the connected room to the door
+        local connX = math_floor(connectedRoom.x + connectedRoom.w / 2)
+        local connY = math_floor(connectedRoom.y + connectedRoom.h / 2)
+
+        -- Horizontal then vertical
+        local startX, endX = math_min(connX, doorX), math_max(connX, doorX)
+        local startY, endY = math_min(connY, doorY), math_max(connY, doorY)
+
+        for x = startX, endX do
+            if dungeon[connY] and dungeon[connY][x] and dungeon[connY][x].type ~= "floor" then
+                dungeon[connY][x] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
+            end
+        end
+
+        for y = startY, endY do
+            if dungeon[y] and dungeon[y][doorX] and dungeon[y][doorX].type ~= "floor" then
+                dungeon[y][doorX] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
+            end
+        end
+
+        return doorX, doorY
+    end
+
+    return nil, nil
+end
+
+local function createBasicRoom(dungeon, room)
     -- Create floor
     for y = room.y, room.y + room.h do
         for x = room.x, room.x + room.w do
@@ -168,53 +254,17 @@ local function createRoom(dungeon, room, isSpecialRoom)
         end
     end
 
-    -- Create walls with appropriate color
+    -- Create walls
     for y = room.y - 1, room.y + room.h + 1 do
         for x = room.x - 1, room.x + room.w + 1 do
             if y == room.y - 1 or y == room.y + room.h + 1 or
-                x == room.x - 1 or x == room.x + room.w + 1 then
-                if not (dungeon[y] and dungeon[y][x] and dungeon[y][x].type == "floor") then
-                    dungeon[y][x] = { type = "wall", char = TILES.WALL, color = wallColor }
+               x == room.x - 1 or x == room.x + room.w + 1 then
+                if dungeon[y] and dungeon[y][x] and dungeon[y][x].type ~= "floor" then
+                    dungeon[y][x] = { type = "wall", char = TILES.WALL, color = { 0.3, 0.3, 0.5 } }
                 end
             end
         end
     end
-end
-
-local function findDoorLocation(room, connectedRoom)
-    local doorX, doorY
-
-    -- Determine which wall faces the connected room
-    local roomCenterX = room.x + math_floor(room.w / 2)
-    local roomCenterY = room.y + math_floor(room.h / 2)
-    local connectedCenterX = connectedRoom.x + math_floor(connectedRoom.w / 2)
-    local connectedCenterY = connectedRoom.y + math_floor(connectedRoom.h / 2)
-
-    if math_abs(roomCenterX - connectedCenterX) > math_abs(roomCenterY - connectedCenterY) then
-        -- Connected horizontally
-        if roomCenterX > connectedCenterX then
-            -- Connected room is to the left, place door on left wall
-            doorX = room.x - 1
-            doorY = math_random(room.y + 1, room.y + room.h - 1)
-        else
-            -- Connected room is to the right, place door on right wall
-            doorX = room.x + room.w
-            doorY = math_random(room.y + 1, room.y + room.h - 1)
-        end
-    else
-        -- Connected vertically
-        if roomCenterY > connectedCenterY then
-            -- Connected room is above, place door on top wall
-            doorX = math_random(room.x + 1, room.x + room.w - 1)
-            doorY = room.y - 1
-        else
-            -- Connected room is below, place door on bottom wall
-            doorX = math_random(room.x + 1, room.x + room.w - 1)
-            doorY = room.y + room.h
-        end
-    end
-
-    return doorX, doorY
 end
 
 function DungeonManager:generateDungeon(player)
@@ -259,47 +309,37 @@ function DungeonManager:generateDungeon(player)
         end
 
         if not failed then
-            -- Decide if this room should be special (only one special room per level)
+            -- Decide if this room should be special
             local isSpecial = false
             if not specialRoom and i > 1 and math_random() < SPECIAL_ROOM_CHANCE then
                 isSpecial = true
                 specialRoom = newRoom
             end
 
-            -- Create the room with appropriate wall color
-            createRoom(dungeon, newRoom, isSpecial)
-
             -- Place player in first room
             if #rooms == 0 then
                 player.x = math_floor(newRoom.x + newRoom.w / 2)
                 player.y = math_floor(newRoom.y + newRoom.h / 2)
+                createBasicRoom(dungeon, newRoom)
             else
-                -- Connect to previous room with tunnel
-                local prevRoom = rooms[#rooms]
-                createTunnel(dungeon, prevRoom, newRoom)
-
-                -- If this is a special room, replace the connecting tunnel tile with a locked door
                 if isSpecial then
-                    local doorX, doorY = findDoorLocation(newRoom, prevRoom)
+                    -- Create special room with single door
+                    local prevRoom = rooms[#rooms]
+                    local doorX, doorY = createSpecialRoom(dungeon, newRoom, prevRoom)
 
-                    -- Ensure door coordinates are valid
-                    if doorX >= 1 and doorX <= DUNGEON_WIDTH and doorY >= 1 and doorY <= DUNGEON_HEIGHT then
-                        dungeon[doorY][doorX] = {
-                            type = "locked_door",
-                            char = TILES.LOCKED_DOOR,
-                            color = { 0.8, 0.6, 0.2 },
-                            connectedRoom = newRoom
-                        }
-
-                        -- Store door information
+                    if doorX and doorY then
                         table_insert(specialRooms, {
                             doorX = doorX,
                             doorY = doorY,
                             room = newRoom
                         })
 
-                        -- Add exactly ONE key somewhere in the dungeon (not in the special room)
-                        local keyRoom = rooms[math_random(#rooms)]
+                        -- Place a key in a random non-special room
+                        local keyRoom
+                        repeat
+                            keyRoom = rooms[math_random(#rooms)]
+                        until keyRoom ~= newRoom
+
                         local keyX = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
                         local keyY = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
 
@@ -308,17 +348,21 @@ function DungeonManager:generateDungeon(player)
                                 x = keyX,
                                 y = keyY,
                                 char = TILES.KEY,
-                                color = { 1, 1, 0 }, -- Yellow
+                                color = { 1, 1, 0 },
                                 name = "Key"
                             })
                         end
                     end
+                else
+                    -- Create normal room and tunnel
+                    createBasicRoom(dungeon, newRoom)
+                    local prevRoom = rooms[#rooms]
+                    createTunnel(dungeon, prevRoom, newRoom)
                 end
             end
 
             -- Place monsters and items
             placeEntities(dungeon, monsters, items, player, newRoom, isSpecial)
-
             table_insert(rooms, newRoom)
         end
     end
