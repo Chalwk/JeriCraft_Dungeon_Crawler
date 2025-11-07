@@ -395,6 +395,47 @@ local function monsterTurns(self)
     end
 end
 
+local function enterSpecialRoom(self, specialRoomData)
+    if not specialRoomData then return end
+
+    -- Save return position
+    self.specialRoomReturnX = self.player.x
+    self.specialRoomReturnY = self.player.y
+
+    -- Move player to the special room (center of the room)
+    local room = specialRoomData.room
+    self.player.x = math_floor(room.x + room.w / 2)
+    self.player.y = math_floor(room.y + room.h / 2)
+
+    -- Set state
+    self.inSpecialRoom = true
+
+    addMessage(self, "You enter the secret chamber!")
+    self.sounds:play("unlock")
+
+    -- Update FOV to show the special room
+    updateFOV(self)
+end
+
+local function leaveSpecialRoom(self)
+    if not self.inSpecialRoom then return end
+
+    -- Return player to original position
+    self.player.x = self.specialRoomReturnX
+    self.player.y = self.specialRoomReturnY
+
+    -- Reset state
+    self.inSpecialRoom = false
+    self.specialRoomReturnX = nil
+    self.specialRoomReturnY = nil
+
+    addMessage(self, "You leave the secret chamber.")
+    self.sounds:play("walk")
+
+    -- Update FOV to show main dungeon
+    updateFOV(self)
+end
+
 -- up, right, down, left
 local directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } }
 local function tryOpenDoor(self)
@@ -410,30 +451,42 @@ local function tryOpenDoor(self)
             if tile.type == "locked_door" then
                 -- Check if player has key
                 local hasKey = false
+                local keyIndex = nil
                 for i, itemName in ipairs(self.player.inventory) do
                     if itemName == "Key" then
                         hasKey = true
-                        -- Remove key from inventory
-                        table_remove(self.player.inventory, i)
+                        keyIndex = i
                         break
                     end
                 end
 
                 if hasKey then
                     -- Unlock the door
-                    tile.type = "floor"
+                    tile.type = "unlocked_door"
                     tile.char = self.dungeonManager.TILES.UNLOCKED_DOOR
                     tile.color = { 0.7, 0.7, 0.7 } -- Gray for unlocked door
+
+                    -- Remove key from inventory
+                    table_remove(self.player.inventory, keyIndex)
 
                     addMessage(self, "You unlock the door with the key!")
                     self.sounds:play("unlock")
 
-                    -- Reveal the special room
-                    updateFOV(self)
+                    -- Find which special room this door belongs to and enter it
+                    for _, specialRoomData in ipairs(self.specialRooms) do
+                        if specialRoomData.doorX == checkX and specialRoomData.doorY == checkY then
+                            enterSpecialRoom(self, specialRoomData)
+                            break
+                        end
+                    end
                 else
                     addMessage(self, "The door is locked. You need a key to open it.")
                     self.sounds:play("locked")
                 end
+                return
+            elseif tile.type == "unlocked_door" and self.inSpecialRoom then
+                -- If we're in a special room and click the door, leave it
+                leaveSpecialRoom(self)
                 return
             elseif tile.type == "unlocked_door" then
                 addMessage(self, "The door is already unlocked.")
@@ -442,7 +495,11 @@ local function tryOpenDoor(self)
         end
     end
 
-    addMessage(self, "There's no door nearby to interact with.")
+    if self.inSpecialRoom then
+        addMessage(self, "Find the unlocked door to leave this chamber.")
+    else
+        addMessage(self, "There's no door nearby to interact with.")
+    end
 end
 
 function Game.new(fontManager)
@@ -497,6 +554,11 @@ function Game.new(fontManager)
     instance.dungeonFont = nil
     instance.fonts = fontManager
 
+    -- Special room state
+    instance.inSpecialRoom = false
+    instance.specialRoomReturnX = nil
+    instance.specialRoomReturnY = nil
+
     local soundManager = SoundManager.new()
     instance.sounds = soundManager
 
@@ -507,6 +569,21 @@ function Game:tryOpenDoor() tryOpenDoor(self) end
 
 function Game:movePlayer(dx, dy)
     if self.gameOver then return end
+
+    -- If in special room, check if moving through the unlocked door
+    if self.inSpecialRoom then
+        local newX = self.player.x + dx
+        local newY = self.player.y + dy
+
+        -- Check if moving through the unlocked door (exit)
+        for _, specialRoomData in ipairs(self.specialRooms) do
+            local doorX, doorY = specialRoomData.doorX, specialRoomData.doorY
+            if newX == doorX and newY == doorY then
+                leaveSpecialRoom(self)
+                return
+            end
+        end
+    end
 
     local newX = self.player.x + dx
     local newY = self.player.y + dy
@@ -521,6 +598,13 @@ function Game:movePlayer(dx, dy)
     -- Check for walls
     if self.dungeon[newY][newX].type == "wall" then
         addMessage(self, "You bump into a wall.")
+        self.sounds:play("bump")
+        return
+    end
+
+    -- Check for locked doors (prevent movement through them)
+    if self.dungeon[newY][newX].type == "locked_door" then
+        addMessage(self, "The door is locked.")
         self.sounds:play("bump")
         return
     end
@@ -641,6 +725,10 @@ end
 function Game:startNewGame(difficulty, character)
     self.difficulty = difficulty or "medium"
     self.character = character or "warrior"
+
+    self.inSpecialRoom = false
+    self.specialRoomReturnX = nil
+    self.specialRoomReturnY = nil
 
     if self.character == "warrior" then
         self.player = {

@@ -242,18 +242,19 @@ function DungeonManager:generateDungeon(player)
     local monsters = {}
     local items = {}
     local visibleTiles = {}
-    local specialRooms = {} -- Track special rooms and their doors
+    local specialRooms = {}
+
+    -- Track if we've created a special room this level
+    local specialRoomCreated = false
 
     -- Initialize dungeon with walls
     for y = 1, DUNGEON_HEIGHT do
         dungeon[y] = {}
         visibleTiles[y] = {}
-        -- Ensure exploredTiles has proper structure
         if not self.exploredTiles[y] then self.exploredTiles[y] = {} end
         for x = 1, DUNGEON_WIDTH do
             dungeon[y][x] = { type = "wall", char = TILES.WALL, color = { 0.3, 0.3, 0.5 } }
             visibleTiles[y][x] = false
-            -- Initialize exploredTiles if not already set
             if self.exploredTiles[y][x] == nil then self.exploredTiles[y][x] = false end
         end
     end
@@ -296,15 +297,18 @@ function DungeonManager:generateDungeon(player)
             -- Place monsters and items in main room
             placeEntities(dungeon, monsters, items, player, newRoom, false)
 
-            -- Sometimes add a special room with locked door
-            if #rooms > 0 and math_random() < SPECIAL_ROOM_CHANCE then
+            -- Only create ONE special room per level, and only if we have at least one regular room
+            if #rooms > 0 and not specialRoomCreated and math_random() < SPECIAL_ROOM_CHANCE then
                 print("Attempting to create special room for room #" .. #rooms)
                 local specialRoom, doorX, doorY = createSpecialRoom(dungeon, newRoom)
                 print("specialRoom:", specialRoom, "door at:", doorX, doorY)
                 if specialRoom then
+                    specialRoomCreated = true
+
                     -- Place better loot and monsters in special room
                     placeEntities(dungeon, monsters, items, player, specialRoom, true)
-                    -- Add a key somewhere in the dungeon (not in the special room)
+
+                    -- Add exactly ONE key somewhere in the dungeon (not in the special room)
                     local keyRoom = rooms[math_random(#rooms)]
                     local keyX = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
                     local keyY = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
