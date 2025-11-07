@@ -4,6 +4,7 @@
 
 local Game = require("classes.Game")
 local Menu = require("classes.Menu")
+local FontManager = require("classes.FontManager")
 local BackgroundManager = require("classes.BackgroundManager")
 
 local math_sin = math.sin
@@ -16,9 +17,9 @@ local table_insert = table.insert
 local math_random = love.math.random
 local lg = love.graphics
 
-local game, menu, backgroundManager
+local game, menu, backgroundManager, fontManager
 local screenWidth, screenHeight
-local gameState = "loading" -- Start with loading state
+local gameState = "menu" -- Start with loading state todo: set this to "loading"
 local stateTransition = { alpha = 0, duration = 0.5, timer = 0, active = false }
 
 -- Loading screen variables
@@ -31,6 +32,8 @@ local loadingScreen = {
     torchFlicker = 0,
     subtitlePhase = 0
 }
+
+local runes = { "†", "‡", "¶", "§", "¤", "•" }
 
 local function updateScreenSize()
     screenWidth = lg.getWidth()
@@ -103,7 +106,7 @@ local function drawLoadingScreen()
     -- Title shadow
     lg.setColor(0, 0, 0, 0.8)
     lg.setFont(lg.newFont(72))
-    lg.printf("JeriCraft: Dungeon Crawler", -200, 2, 400, "center")
+    lg.printf("JeriCraft", -200, 2, 400, "center")
 
     -- Main title with fiery gradient
     local titleProgress = math_min(1.0, loadingScreen.timer / 2.0)
@@ -112,7 +115,7 @@ local function drawLoadingScreen()
     local b = 0.1
 
     lg.setColor(r, g, b, titleProgress)
-    lg.printf("JeriCraft: Dungeon Crawler", -200, 0, 400, "center")
+    lg.printf("JeriCraft", -200, 0, 400, "center")
 
     lg.pop()
 
@@ -158,7 +161,6 @@ local function drawLoadingScreen()
     -- Ancient runes decoration
     lg.setFont(lg.newFont(24))
     lg.setColor(0.4, 0.3, 0.2, 0.3)
-    local runes = { "†", "‡", "¶", "§", "¤", "•" }
     for i = 1, 6 do
         local angle = (time * 0.5 + i * math_pi / 3) % (math_pi * 2)
         local radius = 200
@@ -212,13 +214,13 @@ function love.load()
     lg.setDefaultFilter("nearest", "nearest")
     lg.setLineStyle("smooth")
 
-    -- Initialize loading screen first
+    fontManager = FontManager.new()
+
     updateScreenSize()
     initLoadingParticles()
 
-    -- Start loading resources (these will complete during loading screen)
-    game = Game.new()
-    menu = Menu.new()
+    game = Game.new(fontManager)
+    menu = Menu.new(fontManager)
     backgroundManager = BackgroundManager.new()
 
     menu:setScreenSize(screenWidth, screenHeight)
@@ -228,12 +230,7 @@ end
 function love.update(dt)
     updateScreenSize()
 
-    if gameState == "loading" then
-        updateLoadingScreen(dt)
-        return
-    end
-
-    -- Handle state transitions
+    -- Update transitions regardless of state
     if stateTransition.active then
         stateTransition.timer = stateTransition.timer + dt
         stateTransition.alpha = math_min(stateTransition.timer / stateTransition.duration, 1)
@@ -243,6 +240,11 @@ function love.update(dt)
             stateTransition.active = false
             stateTransition.alpha = 0
         end
+    end
+
+    if gameState == "loading" then
+        updateLoadingScreen(dt)
+        return
     end
 
     if gameState == "menu" then
@@ -286,16 +288,6 @@ function love.draw()
 end
 
 function love.mousepressed(x, y, button, istouch)
-    if gameState == "loading" then
-        -- Allow skipping the loading screen
-        if not loadingScreen.complete then
-            loadingScreen.complete = true
-            loadingScreen.progress = 1.0
-            startStateTransition("menu")
-        end
-        return
-    end
-
     if button == 1 then
         if gameState == "menu" then
             local action = menu:handleClick(x, y, "menu")
@@ -330,16 +322,6 @@ function love.mousepressed(x, y, button, istouch)
 end
 
 function love.keypressed(key)
-    if gameState == "loading" then
-        -- Allow skipping the loading screen with any key
-        if not loadingScreen.complete then
-            loadingScreen.complete = true
-            loadingScreen.progress = 1.0
-            startStateTransition("menu")
-        end
-        return
-    end
-
     if key == "escape" then
         if gameState == "playing" or gameState == "options" then
             startStateTransition("menu")

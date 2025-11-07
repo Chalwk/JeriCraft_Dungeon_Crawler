@@ -28,8 +28,8 @@ local function initFloatingSymbols(self)
             rotationSpeed = (math_random() - 0.5) * 2,
             bobSpeed = math_random(1, 3),
             bobAmount = math_random(2, 8),
-            -- Dungeon symbols instead of letters
-            char = math_random() > 0.5 and "#" or ".",
+            -- Cool dungeon symbols
+            char = math_random() > 0.5 and "█" or "·",
             alpha = math_random(0.3, 0.7),
             isRevealed = math_random() > 0.7,
             isGhost = math_random() > 0.8,
@@ -60,8 +60,8 @@ local function initFloatingMonsters(self)
             alpha = math_random(0.1, 0.3),
             pulseSpeed = math_random(0.5, 1.5),
             pulsePhase = math_random() * math_pi * 2,
-            -- Monster symbols
-            char = math_random() > 0.5 and "k" or "o"
+            -- Cool monster symbols
+            char = math_random() > 0.5 and "†" or "‡"
         })
     end
 end

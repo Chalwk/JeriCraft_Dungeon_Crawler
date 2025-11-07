@@ -23,12 +23,17 @@ local helpText = {
     "• Menu: ESC",
     "",
     "Symbols:",
-    "@ - You",
-    "# - Walls",
-    ". - Floor",
-    "> - Stairs down",
-    "k - Kobold, o - Orc, s - Snake, etc.",
-    "* - Gold, % - Food, ! - Potion",
+    "☻ - You",
+    "█ - Walls",
+    "· - Floor",
+    "π - Doors",
+    "» - Stairs down",
+    "« - Stairs up",
+    "⌂ - Traps",
+    "† - Kobold, ‡ - Orc, ¶ - Snake",
+    "§ - Zombie, ¤ - Bat, • - Spider",
+    "♦ - Gold, ♠ - Food, ♣ - Potion",
+    "⚔ - Weapons, 🛡 - Armor, ⁂ - Scrolls",
     "",
     "Click anywhere to close"
 }
@@ -76,7 +81,7 @@ local function updateOptionsButtonPositions(self)
 end
 
 local function updateButtonPositions(self)
-    local startY = self.screenHeight / 2 - 20
+    local startY = self.screenHeight / 2 - 80
     for i, button in ipairs(self.menuButtons) do
         button.x = (self.screenWidth - button.width) / 2
         button.y = startY + (i - 1) * 70
@@ -331,7 +336,7 @@ local function drawHelpOverlay(self, screenWidth, screenHeight)
 
     -- Help box with modern design
     local boxWidth = 650
-    local boxHeight = 575
+    local boxHeight = 700
     local boxX = (screenWidth - boxWidth) / 2
     local boxY = (screenHeight - boxHeight) / 2
 
@@ -352,7 +357,7 @@ local function drawHelpOverlay(self, screenWidth, screenHeight)
 
     -- Title with icon
     lg.setColor(1, 1, 1)
-    lg.setFont(self.largeFont)
+    lg.setFont(self.largeFont) -- large font
     lg.printf("JeriCraft: Dungeon Crawler - How to Play", boxX, boxY + 25, boxWidth, "center")
 
     -- Help text with better formatting
@@ -388,16 +393,10 @@ local function drawDungeonTitle(self, screenWidth, screenHeight)
     -- Title main with glow
     lg.setColor(0.9, 0.2, 0.2, self.title.glow)
     lg.printf(self.title.text, -300, -self.titleFont:getHeight() / 2, 600, "center")
-
-    -- Subtitle
-    lg.setColor(0.7, 0.7, 1)
-    lg.setFont(self.sectionFont)
-    lg.printf("Dungeon Crawler (1980 Adaptation)", -250, 40, 500, "center")
-
     lg.pop()
 end
 
-function Menu.new()
+function Menu.new(fontManager)
     local instance = setmetatable({}, Menu)
 
     instance.screenWidth = 800
@@ -419,11 +418,12 @@ function Menu.new()
     instance.time = 0
     instance.buttonHover = nil
 
-    instance.smallFont = lg.newFont(14)
-    instance.mediumFont = lg.newFont(24)
-    instance.largeFont = lg.newFont(48)
-    instance.sectionFont = lg.newFont(20)
-    instance.titleFont = lg.newFont(64)
+    instance.fontManager = fontManager
+    instance.smallFont = instance.fontManager:getSmallFont()
+    instance.mediumFont = instance.fontManager:getMediumFont()
+    instance.largeFont = instance.fontManager:getLargeFont()
+    instance.sectionFont = instance.fontManager:getSectionFont()
+    instance.titleFont = instance.fontManager:getTitleFont()
 
     createMenuButtons(instance)
     createOptionsButtons(instance)
@@ -496,7 +496,7 @@ function Menu:draw(screenWidth, screenHeight, state)
             lg.setFont(self.smallFont)
             lg.printf(
                 "Explore dungeons, fight monsters, and find treasure!\nSurvive as long as you can in this dungeon crawler!",
-                0, screenHeight / 3 + 30, screenWidth, "center")
+                0, screenHeight / 2 - 350, screenWidth, "center")
 
             -- Draw help button
             drawHelpButton(self)

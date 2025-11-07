@@ -28,27 +28,28 @@ local UI_PADDING = 8
 
 -- ASCII characters for display
 local TILES = {
-    WALL = "#",
-    FLOOR = ".",
-    DOOR = "+",
-    STAIRS_DOWN = ">",
-    STAIRS_UP = "<",
-    PLAYER = "@",
-    GOLD = "*",
-    FOOD = "%",
-    WEAPON = ")",
-    ARMOR = "[",
-    POTION = "!",
-    SCROLL = "?",
-    TRAP = "^"
+    WALL = "█",
+    FLOOR = "·",
+    DOOR = "π",
+    STAIRS_UP = "⮝",
+    STAIRS_DOWN = "⮟",
+    PLAYER = "⛑",
+    GOLD = "♦",
+    FOOD = "♠",
+    WEAPON = "⚔",
+    ARMOR = "🛡",
+    POTION = "♣",
+    SCROLL = "⁂",
+    TRAP = "⌂"
 }
 
 local MONSTERS = {
-    { char = "k", name = "Kobold", color = { 0.6, 0.6, 0.2 }, hp = 5,  attack = 2, xp = 5 },
-    { char = "o", name = "Orc",    color = { 0.3, 0.7, 0.3 }, hp = 10, attack = 4, xp = 15 },
-    { char = "s", name = "Snake",  color = { 0.3, 0.8, 0.3 }, hp = 3,  attack = 1, xp = 3 },
-    { char = "z", name = "Zombie", color = { 0.4, 0.6, 0.4 }, hp = 15, attack = 3, xp = 20 },
-    { char = "B", name = "Bat",    color = { 0.7, 0.5, 0.7 }, hp = 2,  attack = 1, xp = 2 }
+    { char = "†", name = "Kobold", color = { 0.6, 0.6, 0.2 }, hp = 5, attack = 2, xp = 5 },
+    { char = "‡", name = "Orc", color = { 0.3, 0.7, 0.3 }, hp = 10, attack = 4, xp = 15 },
+    { char = "¶", name = "Snake", color = { 0.3, 0.8, 0.3 }, hp = 3, attack = 1, xp = 3 },
+    { char = "§", name = "Zombie", color = { 0.4, 0.6, 0.4 }, hp = 15, attack = 3, xp = 20 },
+    { char = "¤", name = "Bat", color = { 0.7, 0.5, 0.7 }, hp = 2, attack = 1, xp = 2 },
+    { char = "•", name = "Spider", color = { 0.5, 0.4, 0.6 }, hp = 4, attack = 2, xp = 4 }
 }
 
 local ITEMS = {
@@ -108,10 +109,8 @@ local function drawDungeon(self)
     local offsetX = self.dungeonOffsetX
     local offsetY = self.dungeonOffsetY
 
-    -- Create and configure font once (cached for performance)
     if not self.dungeonFont or self.dungeonFont:getHeight() ~= tileSize then
-        self.dungeonFont = lg.newFont(tileSize)
-        self.dungeonFont:setFilter("nearest", "nearest") -- Pixel-perfect scaling
+        self.dungeonFont = self.fontManager:getFont(tileSize)
     end
     lg.setFont(self.dungeonFont)
 
@@ -169,26 +168,16 @@ local function drawDungeon(self)
 end
 
 local function drawUI(self)
-    -- Background panel flushed to the left edge
-    lg.setColor(0, 0, 0, 0.85)
-    lg.rectangle("fill", 0, 0, UI_WIDTH, self.screenHeight)
-
-    -- Common font setup
-    lg.setColor(1, 1, 1)
-    local smallFont = lg.newFont(14)
-    local medFont = lg.newFont(16)
-    local titleFont = lg.newFont(18)
-    lg.setFont(titleFont)
-
     local x = UI_PADDING
     local y = UI_PADDING
 
     -- Header
+    lg.setFont(self.mediumFont)
     lg.print("STATUS", x, y)
     y = y + 28
 
     -- Player stats
-    lg.setFont(medFont)
+    lg.setFont(self.smallFont)
     lg.print("Level: " .. self.dungeonLevel, x, y); y = y + 24
     lg.print("HP: " .. self.player.hp .. "/" .. self.player.maxHp, x, y); y = y + 24
     lg.print("Atk: " .. self.player.attack, x, y); y = y + 20
@@ -198,9 +187,12 @@ local function drawUI(self)
     lg.print("Turn: " .. self.turn, x, y); y = y + 28
 
     -- Controls block
-    lg.setFont(smallFont)
     lg.setColor(0.75, 0.75, 0.75)
-    lg.print("Controls", x, y); y = y + 18
+
+    lg.setFont(self.mediumFont)
+    lg.print("CONTROLS", x, y); y = y + 18
+    lg.setFont(self.smallFont)
+
     lg.print("Move: Arrow / WASD", x, y); y = y + 18
     lg.print("Wait: Space", x, y); y = y + 18
     lg.print("Rest: R", x, y); y = y + 18
@@ -209,7 +201,6 @@ local function drawUI(self)
 
     -- Message log at bottom of UI (most recent at top)
     lg.setColor(0.85, 0.85, 0.85)
-    lg.setFont(smallFont)
     local logStartY = self.screenHeight - UI_PADDING - (#self.messageLog * 18)
     for i, message in ipairs(self.messageLog) do
         lg.print(message, x, logStartY + (i - 1) * 18)
@@ -232,8 +223,7 @@ local function drawInventory(self)
     lg.rectangle("line", panelX, panelY, panelW, panelH, 8, 8)
 
     -- Title
-    local titleFont = lg.newFont(26)
-    lg.setFont(titleFont)
+    lg.setFont(self.titleFont)
     lg.setColor(1, 0.9, 0.5)
     lg.printf("INVENTORY", panelX, panelY + 15, panelW, "center")
 
@@ -242,8 +232,7 @@ local function drawInventory(self)
     lg.rectangle("fill", panelX + 20, panelY + 55, panelW - 40, 1)
 
     -- Inventory list area
-    local listFont = lg.newFont(18)
-    lg.setFont(listFont)
+    lg.setFont(self.listFont)
 
     if #self.player.inventory == 0 then
         lg.setColor(0.8, 0.8, 0.8)
@@ -270,8 +259,7 @@ local function drawInventory(self)
     end
 
     -- Footer info
-    local footerFont = lg.newFont(14)
-    lg.setFont(footerFont)
+    lg.setFont(self.smallFont)
     lg.setColor(0.75, 0.75, 0.75, 0.8)
     lg.printf("Press I to close", panelX, panelY + panelH - 35, panelW, "center")
 end
@@ -280,8 +268,7 @@ local function drawGameOver(self)
     lg.setColor(0, 0, 0, 0.7)
     lg.rectangle("fill", 0, 0, self.screenWidth, self.screenHeight)
 
-    local font = lg.newFont(48)
-    lg.setFont(font)
+    lg.setFont(self.largeFont)
 
     if self.won then
         lg.setColor(0.2, 0.8, 0.2)
@@ -292,7 +279,7 @@ local function drawGameOver(self)
     end
 
     lg.setColor(1, 1, 1)
-    lg.setFont(lg.newFont(24))
+    lg.setFont(self.mediumFont)
     lg.printf("You reached dungeon level " .. self.dungeonLevel,
         0, self.screenHeight / 2, self.screenWidth, "center")
     lg.printf("Click anywhere to continue",
@@ -581,7 +568,7 @@ local function monsterTurns(self)
     end
 end
 
-function Game.new()
+function Game.new(fontManager)
     local instance = setmetatable({}, Game)
 
     instance.screenWidth = 800
@@ -622,12 +609,21 @@ function Game.new()
     instance.screenShake = { intensity = 0, duration = 0, timer = 0, active = false }
     instance.buttonHover = nil
     instance.time = 0
-    instance.dungeonFont = nil
 
     -- Initialize tile size and offsets
     instance.tileSize = 16
     instance.dungeonOffsetX = UI_WIDTH + 10
     instance.dungeonOffsetY = 50
+
+    instance.fontManager = fontManager
+    instance.dungeonFont = nil
+
+    instance.smallFont = instance.fontManager:getSmallFont()
+    instance.mediumFont = instance.fontManager:getMediumFont()
+    instance.largeFont = instance.fontManager:getLargeFont()
+    instance.sectionFont = instance.fontManager:getSectionFont()
+    instance.titleFont = instance.fontManager:getTitleFont()
+    instance.listFont = instance.fontManager:getFont(18)
 
     local soundManager = SoundManager.new()
     instance.sounds = soundManager
