@@ -10,6 +10,7 @@ local math_floor = math.floor
 local table_insert = table.insert
 local math_max = math.max
 local math_min = math.min
+local math_abs = math.abs
 local math_random = love.math.random
 
 -- Dungeon generation constants
@@ -18,8 +19,9 @@ local DUNGEON_HEIGHT = 40
 local ROOM_MIN_SIZE = 4
 local ROOM_MAX_SIZE = 10
 local MAX_ROOMS = 20
-local SPECIAL_ROOM_CHANCE = 1 -- Default: 0.3 (30%) chance a room has a special door
+local SPECIAL_ROOM_CHANCE = 1                -- 30% chance a room is special
 local FLOOR_COLOR = { 0.35, 0.35, 0.35, 0.3 }
+local SPECIAL_WALL_COLOR = { 0.6, 0.3, 0.6 } -- Purple walls for special rooms
 
 -- ASCII characters for display
 local TILES = {
@@ -157,123 +159,64 @@ local function placeEntities(dungeon, monsters, items, player, room, isSpecialRo
     end
 end
 
-local function createRoom(dungeon, room)
+local function createRoom(dungeon, room, isSpecialRoom)
+    local wallColor = isSpecialRoom and SPECIAL_WALL_COLOR or { 0.3, 0.3, 0.5 }
+
+    -- Create floor
     for y = room.y, room.y + room.h do
         for x = room.x, room.x + room.w do
             dungeon[y][x] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
         end
     end
-end
 
-local function createSpecialRoom(dungeon, connectedRoom)
-    local w = math_random(4, 7) -- Slightly larger for better gameplay
-    local h = math_random(4, 7)
-
-    -- Try different positions relative to the connected room
-    local positions = {
-        { x = connectedRoom.x + connectedRoom.w + 2, y = connectedRoom.y,                       w = w, h = h, dir = "right" },
-        { x = connectedRoom.x - w - 2,               y = connectedRoom.y,                       w = w, h = h, dir = "left" },
-        { x = connectedRoom.x,                       y = connectedRoom.y + connectedRoom.h + 2, w = w, h = h, dir = "bottom" },
-        { x = connectedRoom.x,                       y = connectedRoom.y - h - 2,               w = w, h = h, dir = "top" }
-    }
-
-    -- Shuffle to try different positions randomly
-    for i = #positions, 2, -1 do
-        local j = math_random(i)
-        positions[i], positions[j] = positions[j], positions[i]
-    end
-
-    for _, pos in ipairs(positions) do
-        -- Bounds check with 1-tile margin for walls
-        if pos.x >= 2 and pos.x + pos.w <= DUNGEON_WIDTH - 1 and
-            pos.y >= 2 and pos.y + pos.h <= DUNGEON_HEIGHT - 1 then
-            -- Check if this position overlaps with existing rooms
-            local overlaps = false
-            for checkY = pos.y - 1, pos.y + pos.h + 1 do
-                for checkX = pos.x - 1, pos.x + pos.w + 1 do
-                    if dungeon[checkY] and dungeon[checkY][checkX] and
-                        dungeon[checkY][checkX].type == "floor" then
-                        overlaps = true
-                        break
-                    end
-                end
-                if overlaps then break end
-            end
-
-            if not overlaps then
-                -- Create the room (floor tiles)
-                for y = pos.y, pos.y + pos.h do
-                    for x = pos.x, pos.x + pos.w do
-                        dungeon[y][x] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
-                    end
-                end
-
-                -- Create walls around the room
-                for y = pos.y - 1, pos.y + pos.h + 1 do
-                    for x = pos.x - 1, pos.x + pos.w + 1 do
-                        if y == pos.y - 1 or y == pos.y + pos.h + 1 or
-                            x == pos.x - 1 or x == pos.x + pos.w + 1 then
-                            -- Only place wall if it's not already a floor from another room
-                            if not (dungeon[y] and dungeon[y][x] and dungeon[y][x].type == "floor") then
-                                dungeon[y][x] = { type = "wall", char = TILES.WALL, color = { 0.3, 0.3, 0.5 } }
-                            end
-                        end
-                    end
-                end
-
-                -- Determine door position based on direction
-                local doorX, doorY
-
-                if pos.dir == "right" then
-                    doorX = pos.x - 1 -- Left wall of special room
-                    doorY = math_random(pos.y + 1, pos.y + pos.h - 1)
-                    -- Create corridor from connected room to special room
-                    for x = connectedRoom.x + connectedRoom.w, doorX do
-                        local midY = math_floor(connectedRoom.y + connectedRoom.h / 2)
-                        dungeon[midY][x] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
-                    end
-                elseif pos.dir == "left" then
-                    doorX = pos.x + pos.w -- Right wall of special room
-                    doorY = math_random(pos.y + 1, pos.y + pos.h - 1)
-                    -- Create corridor from connected room to special room
-                    for x = doorX, connectedRoom.x - 1 do
-                        local midY = math_floor(connectedRoom.y + connectedRoom.h / 2)
-                        dungeon[midY][x] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
-                    end
-                elseif pos.dir == "bottom" then
-                    doorY = pos.y - 1 -- Top wall of special room
-                    doorX = math_random(pos.x + 1, pos.x + pos.w - 1)
-                    -- Create corridor from connected room to special room
-                    for y = connectedRoom.y + connectedRoom.h, doorY do
-                        local midX = math_floor(connectedRoom.x + connectedRoom.w / 2)
-                        dungeon[y][midX] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
-                    end
-                elseif pos.dir == "top" then
-                    doorY = pos.y + pos.h -- Bottom wall of special room
-                    doorX = math_random(pos.x + 1, pos.x + pos.w - 1)
-                    -- Create corridor from connected room to special room
-                    for y = doorY, connectedRoom.y - 1 do
-                        local midX = math_floor(connectedRoom.x + connectedRoom.w / 2)
-                        dungeon[y][midX] = { type = "floor", char = TILES.FLOOR, color = FLOOR_COLOR }
-                    end
-                end
-
-                -- Place the locked door
-                if doorX and doorY and doorX >= 1 and doorX <= DUNGEON_WIDTH and doorY >= 1 and doorY <= DUNGEON_HEIGHT then
-                    dungeon[doorY][doorX] = {
-                        type = "locked_door",
-                        char = TILES.LOCKED_DOOR,
-                        color = { 0.8, 0.6, 0.2 },
-                        connectedRoom = pos
-                    }
-
-                    return pos, doorX, doorY
+    -- Create walls with appropriate color
+    for y = room.y - 1, room.y + room.h + 1 do
+        for x = room.x - 1, room.x + room.w + 1 do
+            if y == room.y - 1 or y == room.y + room.h + 1 or
+                x == room.x - 1 or x == room.x + room.w + 1 then
+                -- Only place wall if it's not already a floor from another room
+                if not (dungeon[y] and dungeon[y][x] and dungeon[y][x].type == "floor") then
+                    dungeon[y][x] = { type = "wall", char = TILES.WALL, color = wallColor }
                 end
             end
         end
     end
+end
 
-    return nil
+local function findDoorLocation(room, connectedRoom)
+    local doorX, doorY
+
+    -- Determine which wall faces the connected room
+    local roomCenterX = room.x + math_floor(room.w / 2)
+    local roomCenterY = room.y + math_floor(room.h / 2)
+    local connectedCenterX = connectedRoom.x + math_floor(connectedRoom.w / 2)
+    local connectedCenterY = connectedRoom.y + math_floor(connectedRoom.h / 2)
+
+    if math_abs(roomCenterX - connectedCenterX) > math_abs(roomCenterY - connectedCenterY) then
+        -- Connected horizontally
+        if roomCenterX > connectedCenterX then
+            -- Connected room is to the left, place door on left wall
+            doorX = room.x - 1
+            doorY = math_random(room.y + 1, room.y + room.h - 1)
+        else
+            -- Connected room is to the right, place door on right wall
+            doorX = room.x + room.w
+            doorY = math_random(room.y + 1, room.y + room.h - 1)
+        end
+    else
+        -- Connected vertically
+        if roomCenterY > connectedCenterY then
+            -- Connected room is above, place door on top wall
+            doorX = math_random(room.x + 1, room.x + room.w - 1)
+            doorY = room.y - 1
+        else
+            -- Connected room is below, place door on bottom wall
+            doorX = math_random(room.x + 1, room.x + room.w - 1)
+            doorY = room.y + room.h
+        end
+    end
+
+    return doorX, doorY
 end
 
 function DungeonManager:generateDungeon(player)
@@ -282,9 +225,6 @@ function DungeonManager:generateDungeon(player)
     local items = {}
     local visibleTiles = {}
     local specialRooms = {}
-
-    -- Track if we've created a special room this level
-    local specialRoomCreated = false
 
     -- Initialize dungeon with walls
     for y = 1, DUNGEON_HEIGHT do
@@ -299,8 +239,9 @@ function DungeonManager:generateDungeon(player)
     end
 
     local rooms = {}
+    local specialRoom = nil
 
-    for _ = 1, MAX_ROOMS do
+    for i = 1, MAX_ROOMS do
         -- Random room size
         local w = math_random(ROOM_MIN_SIZE, ROOM_MAX_SIZE)
         local h = math_random(ROOM_MIN_SIZE, ROOM_MAX_SIZE)
@@ -320,8 +261,15 @@ function DungeonManager:generateDungeon(player)
         end
 
         if not failed then
-            -- Carve out the room
-            createRoom(dungeon, newRoom)
+            -- Decide if this room should be special (only one special room per level)
+            local isSpecial = false
+            if not specialRoom and i > 1 and math_random() < SPECIAL_ROOM_CHANCE then
+                isSpecial = true
+                specialRoom = newRoom
+            end
+
+            -- Create the room with appropriate wall color
+            createRoom(dungeon, newRoom, isSpecial)
 
             -- Place player in first room
             if #rooms == 0 then
@@ -331,48 +279,53 @@ function DungeonManager:generateDungeon(player)
                 -- Connect to previous room with tunnel
                 local prevRoom = rooms[#rooms]
                 createTunnel(dungeon, prevRoom, newRoom)
-            end
 
-            -- Place monsters and items in main room
-            placeEntities(dungeon, monsters, items, player, newRoom, false)
+                -- If this is a special room, replace the connecting tunnel tile with a locked door
+                if isSpecial then
+                    local doorX, doorY = findDoorLocation(newRoom, prevRoom)
 
-            -- Only create ONE special room per level, and only if we have at least one regular room
-            if #rooms > 0 and not specialRoomCreated and math_random() < SPECIAL_ROOM_CHANCE then
-                local specialRoom, doorX, doorY = createSpecialRoom(dungeon, newRoom)
-                if specialRoom then
-                    specialRoomCreated = true
+                    -- Ensure door coordinates are valid
+                    if doorX >= 1 and doorX <= DUNGEON_WIDTH and doorY >= 1 and doorY <= DUNGEON_HEIGHT then
+                        dungeon[doorY][doorX] = {
+                            type = "locked_door",
+                            char = TILES.LOCKED_DOOR,
+                            color = { 0.8, 0.6, 0.2 },
+                            connectedRoom = newRoom
+                        }
 
-                    -- Place better loot and monsters in special room
-                    placeEntities(dungeon, monsters, items, player, specialRoom, true)
-
-                    -- Add exactly ONE key somewhere in the dungeon (not in the special room)
-                    local keyRoom = rooms[math_random(#rooms)]
-                    local keyX = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
-                    local keyY = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
-
-                    if not isBlocked(dungeon, monsters, player, keyX, keyY) then
-                        table_insert(items, {
-                            x = keyX,
-                            y = keyY,
-                            char = TILES.KEY,
-                            color = { 1, 1, 0 }, -- Yellow
-                            name = "Key"
+                        -- Store door information
+                        table_insert(specialRooms, {
+                            doorX = doorX,
+                            doorY = doorY,
+                            room = newRoom
                         })
-                    end
 
-                    -- Store door information
-                    table_insert(specialRooms, {
-                        doorX = doorX,
-                        doorY = doorY,
-                        room = specialRoom
-                    })
+                        -- Add exactly ONE key somewhere in the dungeon (not in the special room)
+                        local keyRoom = rooms[math_random(#rooms)]
+                        local keyX = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
+                        local keyY = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
+
+                        if not isBlocked(dungeon, monsters, player, keyX, keyY) then
+                            table_insert(items, {
+                                x = keyX,
+                                y = keyY,
+                                char = TILES.KEY,
+                                color = { 1, 1, 0 }, -- Yellow
+                                name = "Key"
+                            })
+                        end
+                    end
                 end
             end
+
+            -- Place monsters and items
+            placeEntities(dungeon, monsters, items, player, newRoom, isSpecial)
 
             table_insert(rooms, newRoom)
         end
     end
 
+    -- Place exit in last room
     if #rooms > 0 then
         local lastRoom = rooms[#rooms]
         local sx = math_random(lastRoom.x + 1, lastRoom.x + lastRoom.w - 2)
