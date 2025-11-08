@@ -153,15 +153,15 @@ local function drawUI(self)
     lg.print("Def: " .. self.player.defense, x, y); y = y + 20
     lg.print("Gold: " .. self.player.gold, x, y); y = y + 20
     lg.print("XP: " .. self.player.xp .. "/" .. (self.player.level * 10), x, y); y = y + 20
-    lg.print("Turn: " .. self.turn, x, y); y = y + 28
+    lg.print("Turn: " .. self.turn, x, y); y = y + 20
 
     -- Location indicator
     if self.inSpecialRoom then
         lg.setColor(0.8, 0.6, 0.2) -- Gold color for special room
-        lg.print("Location: Special Room", x, y); y = y + 20
+        lg.print("Location: Special Room", x, y); y = y + 32
         lg.setColor(1, 1, 1)       -- Reset to white
     else
-        lg.print("Location: Dungeon Level " .. self.dungeonLevel, x, y); y = y + 20
+        lg.print("Location: Dungeon Level " .. self.dungeonLevel, x, y); y = y + 32
     end
 
     -- Controls block

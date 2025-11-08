@@ -18,7 +18,7 @@ local BASIC_ITEMS = {
     { char = "♦", name = "Gold", color = { 1, 0.8, 0.2 } },
     { char = "♠", name = "Food", color = { 0.9, 0.7, 0.3 } },
     { char = "⚔", name = "Dagger", color = { 0.8, 0.8, 0.8 } },
-    { char = "🛡", name = "Leather Armor", color = { 0.6, 0.4, 0.2 } },
+    { char = "⌺", name = "Leather Armor", color = { 0.6, 0.4, 0.2 } },
     { char = "♣", name = "Healing Potion", color = { 1, 0.2, 0.2 } },
     { char = "⁂", name = "Scroll", color = { 0.8, 0.8, 1 } }
 }
@@ -288,19 +288,19 @@ local ITEM_APPEARANCE = {
     ["Gold"] = { char = "♦", color = { 1, 0.8, 0.2 } },
     ["Food"] = { char = "♠", color = { 0.9, 0.7, 0.3 } },
     ["Dagger"] = { char = "⚔", color = { 0.8, 0.8, 0.8 } },
-    ["Leather Armor"] = { char = "🛡", color = { 0.6, 0.4, 0.2 } },
+    ["Leather Armor"] = { char = "⌺", color = { 0.6, 0.4, 0.2 } },
     ["Healing Potion"] = { char = "♣", color = { 1, 0.2, 0.2 } },
     ["Scroll"] = { char = "⁂", color = { 0.8, 0.8, 1 } },
 
     -- Enhanced weapons
     ["Iron Sword"] = { char = "⚔", color = { 0.9, 0.9, 0.9 } },
     ["Steel Sword"] = { char = "⚔", color = { 0.7, 0.7, 1 } },
-    ["Magic Wand"] = { char = "⁂", color = { 0.8, 0.2, 0.8 } },
+    ["Magic Wand"] = { char = "⚔", color = { 0.8, 0.2, 0.8 } },
 
     -- Enhanced armor
-    ["Chain Mail"] = { char = "🛡", color = { 0.7, 0.7, 0.7 } },
-    ["Plate Armor"] = { char = "🛡", color = { 0.9, 0.9, 0.9 } },
-    ["Magic Robe"] = { char = "🛡", color = { 0.3, 0.3, 0.8 } },
+    ["Chain Mail"] = { char = "⍝", color = { 0.7, 0.7, 0.7 } },
+    ["Plate Armor"] = { char = "⍝", color = { 0.9, 0.9, 0.9 } },
+    ["Magic Robe"] = { char = "⍝", color = { 0.3, 0.3, 0.8 } },
 
     -- Enhanced potions
     ["Greater Healing Potion"] = { char = "♣", color = { 1, 0.5, 0.5 } },
