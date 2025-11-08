@@ -656,7 +656,7 @@ function Game.new(fontManager)
     instance.time = 0
 
     -- Initialize tile size and offsets
-    instance.tileSize = 16
+    instance.tileSize = nil -- set in calculateTileSize
     instance.dungeonOffsetX = UI_WIDTH + 10
     instance.dungeonOffsetY = 50
     instance.dungeonFont = nil
