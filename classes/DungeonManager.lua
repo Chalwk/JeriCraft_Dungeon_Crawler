@@ -24,10 +24,10 @@ local FLOOR_COLORS = {
     { 0.38, 0.32, 0.28, 0.3 }  -- Earth tone
 }
 local WALL_COLORS = {
-    { 0.3,  0.3,  0.5 }, -- Standard blue-gray
+    { 0.3,  0.3,  0.5 },  -- Standard blue-gray
     { 0.35, 0.3,  0.45 }, -- Purple-gray
-    { 0.25, 0.35, 0.4 }, -- Blue-gray
-    { 0.4,  0.25, 0.3 }  -- Red-gray
+    { 0.25, 0.35, 0.4 },  -- Blue-gray
+    { 0.4,  0.25, 0.3 }   -- Red-gray
 }
 local SPECIAL_ROOM_CHANCE = 0.3
 local SPECIAL_WALL_COLORS = {
