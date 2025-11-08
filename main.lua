@@ -316,7 +316,7 @@ function love.mousepressed(x, y, button, istouch)
             if game:isGameOver() then
                 startStateTransition("menu")
             else
-                game:handleClick(x, y)
+                game:handleClick()
             end
         end
     end

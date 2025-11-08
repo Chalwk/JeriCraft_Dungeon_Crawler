@@ -801,9 +801,7 @@ end
 
 function Game:toggleInventory()
     self.showInventory = not self.showInventory
-    if self.showInventory then
-        self.selectedItem = 1
-    end
+    if self.showInventory then self.selectedItem = 1 end
 end
 
 function Game:useSelectedItem()
@@ -991,6 +989,6 @@ function Game:startNewGame(difficulty, character)
     addMessage(self, "Welcome to the dungeon!")
 end
 
-function Game:handleClick(x, y) if self.gameOver then return end end
+function Game:handleClick() if self.gameOver then return end end
 
 return Game
