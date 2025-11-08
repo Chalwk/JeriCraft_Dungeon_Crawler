@@ -8,7 +8,6 @@ local table_insert = table.insert
 local table_remove = table.remove
 local math_max = math.max
 local math_min = math.min
-local math_sqrt = math.sqrt
 
 local lg = love.graphics
 local math_random = love.math.random
@@ -22,21 +21,6 @@ Game.__index = Game
 
 local UI_WIDTH = 200
 local UI_PADDING = 8
-
--- AI Pathfinding constants
-local AI_STATES = {
-    WANDERING = "wandering",
-    CHASING = "chasing",
-    PATROLLING = "patrolling"
-}
-
-local AI_CONFIG = {
-    DETECTION_RANGE = 6,  -- How far monsters can detect the player
-    CHASE_RANGE = 8,      -- How far monsters will chase the player
-    WANDER_CHANCE = 0.3,  -- Chance to wander each turn
-    PATROL_POINTS = 3,    -- Number of patrol points for patrolling monsters
-    MEMORY_TURNS = 5      -- How many turns monsters remember player position
-}
 
 local function addMessage(self, text)
     table_insert(self.messageLog, 1, text)
@@ -135,14 +119,6 @@ local function drawDungeon(self)
         if visibleTiles[monster.y][monster.x] then
             lg.setColor(monster.color)
             lg.print(monster.char, offsetX + (monster.x - 1) * tileSize, offsetY + (monster.y - 1) * tileSize)
-
-            -- Draw AI state indicator for debugging (optional)
-            --if self.debugAI then
-                self.fonts:setFont("tinyFont")
-                lg.setColor(1, 1, 1)
-                lg.print(monster.aiState:sub(1, 1), offsetX + (monster.x - 1) * tileSize, offsetY + (monster.y - 1) * tileSize - 10)
-                self.fonts:setFont(self.dungeonFont)
-            --end
         end
     end
 
@@ -398,32 +374,6 @@ local function updateFOV(self)
     end
 end
 
-local function initializeMonsterAI(monster)
-    monster.aiState = AI_STATES.WANDERING
-    monster.lastKnownPlayerPos = nil
-    monster.memoryTurns = 0
-    monster.patrolPoints = {}
-    monster.currentPatrolIndex = 1
-
-    -- Set AI behavior based on monster type
-    if monster.name:lower():find("boss") then
-        monster.aiType = "aggressive"
-        monster.detectionRange = AI_CONFIG.DETECTION_RANGE + 2
-    elseif monster.name:lower():find("guard") then
-        monster.aiType = "patrol"
-        -- Generate patrol points around starting position
-        for i = 1, AI_CONFIG.PATROL_POINTS do
-            table_insert(monster.patrolPoints, {
-                x = monster.x + math_random(-3, 3),
-                y = monster.y + math_random(-3, 3)
-            })
-        end
-    else
-        monster.aiType = "standard"
-        monster.detectionRange = AI_CONFIG.DETECTION_RANGE
-    end
-end
-
 local function generateDungeon(self)
     local dungeon, monsters, items, visibleTiles, specialDoors = self.dungeonManager:generateDungeon(self.player)
 
@@ -432,11 +382,6 @@ local function generateDungeon(self)
     self.items = items
     self.visibleTiles = visibleTiles
     self.specialDoors = specialDoors or {}
-
-    -- Initialize AI for monsters
-    for _, monster in ipairs(self.monsters) do
-        initializeMonsterAI(monster)
-    end
 
     -- Reset explored tiles for the new level
     for y = 1, self.dungeonManager.DUNGEON_HEIGHT do
@@ -447,207 +392,6 @@ local function generateDungeon(self)
     end
 
     updateFOV(self)
-end
-
--- AI Pathfinding functions
-local function calculateDistance(x1, y1, x2, y2)
-    return math_floor(math_sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2))
-end
-
-local pathfinding_directions = {
-    {0, -1}, {1, 0}, {0, 1}, {-1, 0},  -- up, right, down, left
-    {1, -1}, {1, 1}, {-1, 1}, {-1, -1} -- diagonals
-}
-
-local function getNeighbors(self, x, y, dungeon, monsters, player, ignoreMonsters)
-    local neighbors = {}
-    for _, dir in ipairs(pathfinding_directions) do
-        local newX, newY = x + dir[1], y + dir[2]
-        if newX >= 1 and newX <= #dungeon[1] and newY >= 1 and newY <= #dungeon then
-            local tile = dungeon[newY][newX]
-            if tile.type ~= "wall" then
-                if ignoreMonsters or not self.dungeonManager:isBlocked(dungeon, monsters, player, newX, newY) then
-                    table_insert(neighbors, {x = newX, y = newY})
-                end
-            end
-        end
-    end
-    return neighbors
-end
-
-local function findPath(self, startX, startY, targetX, targetY, dungeon, monsters, player)
-    local openSet = {}
-    local closedSet = {}
-    local cameFrom = {}
-
-    local function getKey(x, y) return x .. "," .. y end
-
-    local gScore = {}
-    local fScore = {}
-
-    local startKey = getKey(startX, startY)
-    gScore[startKey] = 0
-    fScore[startKey] = calculateDistance(startX, startY, targetX, targetY)
-
-    table_insert(openSet, {x = startX, y = startY})
-
-    while #openSet > 0 do
-        -- Find node with lowest fScore
-        local currentIndex = 1
-        for i = 2, #openSet do
-            local currentKey = getKey(openSet[currentIndex].x, openSet[currentIndex].y)
-            local testKey = getKey(openSet[i].x, openSet[i].y)
-            if fScore[testKey] < fScore[currentKey] then
-                currentIndex = i
-            end
-        end
-
-        local current = openSet[currentIndex]
-        local currentKey = getKey(current.x, current.y)
-
-        if current.x == targetX and current.y == targetY then
-            -- Reconstruct path
-            local path = {}
-            while cameFrom[currentKey] do
-                table_insert(path, 1, current)
-                current = cameFrom[currentKey]
-                currentKey = getKey(current.x, current.y)
-            end
-            return path
-        end
-
-        table_remove(openSet, currentIndex)
-        closedSet[currentKey] = true
-
-        local neighbors = getNeighbors(self, current.x, current.y, dungeon, monsters, player, true)
-        for _, neighbor in ipairs(neighbors) do
-            local neighborKey = getKey(neighbor.x, neighbor.y)
-            if not closedSet[neighborKey] then
-                local tentative_gScore = gScore[currentKey] + 1
-
-                if not gScore[neighborKey] or tentative_gScore < gScore[neighborKey] then
-                    cameFrom[neighborKey] = current
-                    gScore[neighborKey] = tentative_gScore
-                    fScore[neighborKey] = tentative_gScore + calculateDistance(neighbor.x, neighbor.y, targetX, targetY)
-
-                    local inOpenSet = false
-                    for _, node in ipairs(openSet) do
-                        if node.x == neighbor.x and node.y == neighbor.y then
-                            inOpenSet = true
-                            break
-                        end
-                    end
-
-                    if not inOpenSet then
-                        table_insert(openSet, neighbor)
-                    end
-                end
-            end
-        end
-    end
-
-    return nil -- No path found
-end
-
-local function updateMonsterAI(self, monster, inSpecialRoom)
-    local dungeon = inSpecialRoom and self.specialRoomDungeon or self.dungeon
-    local monsters = inSpecialRoom and self.specialRoomMonsters or self.monsters
-    local player = self.player
-
-    local distanceToPlayer = calculateDistance(monster.x, monster.y, player.x, player.y)
-    local canSeePlayer = (inSpecialRoom and self.specialRoomVisibleTiles[monster.y][monster.x]) or
-                        (not inSpecialRoom and self.visibleTiles[monster.y][monster.x])
-
-    -- Update memory if player is visible
-    if canSeePlayer then
-        monster.lastKnownPlayerPos = {x = player.x, y = player.y}
-        monster.memoryTurns = AI_CONFIG.MEMORY_TURNS
-    elseif monster.lastKnownPlayerPos then
-        monster.memoryTurns = monster.memoryTurns - 1
-        if monster.memoryTurns <= 0 then
-            monster.lastKnownPlayerPos = nil
-        end
-    end
-
-    -- State transitions
-    if canSeePlayer and distanceToPlayer <= monster.detectionRange then
-        monster.aiState = AI_STATES.CHASING
-    elseif monster.lastKnownPlayerPos and monster.aiState == AI_STATES.CHASING then
-        -- Continue chasing last known position
-        monster.aiState = AI_STATES.CHASING
-    elseif monster.aiType == "patrol" then
-        monster.aiState = AI_STATES.PATROLLING
-    else
-        monster.aiState = AI_STATES.WANDERING
-    end
-
-    -- Execute behavior based on state
-    if monster.aiState == AI_STATES.CHASING then
-        local targetX, targetY = player.x, player.y
-        if monster.lastKnownPlayerPos and not canSeePlayer then
-            targetX, targetY = monster.lastKnownPlayerPos.x, monster.lastKnownPlayerPos.y
-        end
-
-        if distanceToPlayer <= 1 then
-            -- Attack if adjacent to player
-            for i, m in ipairs(monsters) do
-                if m == monster then
-                    attackPlayer(self, i, inSpecialRoom)
-                    return true
-                end
-            end
-        else
-            -- Move toward player
-            local path = findPath(self, monster.x, monster.y, targetX, targetY, dungeon, monsters, player)
-            if path and #path > 0 then
-                local nextStep = path[1]
-                if not self.dungeonManager:isBlocked(dungeon, monsters, player, nextStep.x, nextStep.y) then
-                    monster.x, monster.y = nextStep.x, nextStep.y
-                    return true
-                end
-            end
-        end
-
-    elseif monster.aiState == AI_STATES.PATROLLING then
-        if #monster.patrolPoints > 0 then
-            local target = monster.patrolPoints[monster.currentPatrolIndex]
-            local distanceToTarget = calculateDistance(monster.x, monster.y, target.x, target.y)
-
-            if distanceToTarget <= 1 then
-                -- Move to next patrol point
-                monster.currentPatrolIndex = (monster.currentPatrolIndex % #monster.patrolPoints) + 1
-                target = monster.patrolPoints[monster.currentPatrolIndex]
-            end
-
-            local path = findPath(self, monster.x, monster.y, target.x, target.y, dungeon, monsters, player)
-            if path and #path > 0 then
-                local nextStep = path[1]
-                if not self.dungeonManager:isBlocked(dungeon, monsters, player, nextStep.x, nextStep.y) then
-                    monster.x, monster.y = nextStep.x, nextStep.y
-                    return true
-                end
-            end
-        end
-
-    elseif monster.aiState == AI_STATES.WANDERING then
-        if math_random() < AI_CONFIG.WANDER_CHANCE then
-            local directions = {
-                {0, -1}, {1, 0}, {0, 1}, {-1, 0},
-                {1, -1}, {1, 1}, {-1, 1}, {-1, -1}
-            }
-            local dir = directions[math_random(1, #directions)]
-            local newX, newY = monster.x + dir[1], monster.y + dir[2]
-
-            if newX >= 1 and newX <= #dungeon[1] and newY >= 1 and newY <= #dungeon then
-                if not self.dungeonManager:isBlocked(dungeon, monsters, player, newX, newY) then
-                    monster.x, monster.y = newX, newY
-                    return true
-                end
-            end
-        end
-    end
-
-    return false
 end
 
 local function enterSpecialRoom(self, doorX, doorY)
@@ -679,11 +423,6 @@ local function enterSpecialRoom(self, doorX, doorY)
         self.specialRoomExitX = exitX
         self.specialRoomExitY = exitY
         self.specialRoom = room
-
-        -- Initialize AI for special room monsters
-        for _, monster in ipairs(self.specialRoomMonsters) do
-            initializeMonsterAI(monster)
-        end
 
         -- Cache the special room
         self.specialRoomCache[cacheKey] = {
@@ -777,10 +516,38 @@ end
 
 local function monsterTurns(self, inSpecialRoom)
     local monsters = inSpecialRoom and self.specialRoomMonsters or self.monsters
+    local playerX, playerY = self.player.x, self.player.y
+    local dungeon = inSpecialRoom and self.specialRoomDungeon or self.dungeon
 
     for i = 1, #monsters do
         local monster = monsters[i]
-        updateMonsterAI(self, monster, inSpecialRoom)
+        local visibleTiles = inSpecialRoom and self.specialRoomVisibleTiles or self.visibleTiles
+
+        if visibleTiles[monster.y] and visibleTiles[monster.y][monster.x] then
+            local dx, dy = 0, 0
+
+            -- Calculate direction toward player
+            if monster.x < playerX then
+                dx = 1
+            elseif monster.x > playerX then
+                dx = -1
+            end
+
+            if monster.y < playerY then
+                dy = 1
+            elseif monster.y > playerY then
+                dy = -1
+            end
+
+            local newX, newY = monster.x + dx, monster.y + dy
+
+            -- Check if move is possible
+            if not self.dungeonManager:isBlocked(dungeon, monsters, self.player, newX, newY) then
+                monster.x, monster.y = newX, newY
+            elseif newX == playerX and newY == playerY then
+                attackPlayer(self, i, inSpecialRoom)
+            end
+        end
     end
 end
 
@@ -900,9 +667,6 @@ function Game.new(fontManager)
     instance.screenShake = { intensity = 0, duration = 0, timer = 0, active = false }
     instance.buttonHover = nil
     instance.time = 0
-
-    -- AI debugging
-    instance.debugAI = false -- Set to true to see AI state indicators
 
     -- Initialize tile size and offsets
     instance.tileSize = nil -- set in calculateTileSize
@@ -1095,9 +859,11 @@ function Game:draw()
     lg.translate(offsetX, offsetY)
 
     drawDungeon(self)
+
     drawUI(self)
 
     if self.showInventory then drawInventory(self) end
+
     if self.gameOver then drawGameOver(self) end
 
     lg.pop()
@@ -1215,10 +981,5 @@ function Game:startNewGame(difficulty, character)
 end
 
 function Game:handleClick() if self.gameOver then return end end
-
-function Game:toggleAIDebug()
-    self.debugAI = not self.debugAI
-    addMessage(self, "AI debugging: " .. (self.debugAI and "ON" or "OFF"))
-end
 
 return Game
