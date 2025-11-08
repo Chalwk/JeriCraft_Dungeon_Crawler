@@ -246,11 +246,19 @@ local ITEM_EFFECTS = {
         end
     },
 
-    -- Special Items
+    -- Regular Key
+    ["Key"] = {
+        type = "key",
+        use = function(player, game)
+            return "This key is used to unlock the exit door. Move next to the locked exit door and press 'E' to use it."
+        end
+    },
+
+    -- Special Key
     ["Special Key"] = {
         type = "key",
         use = function(player, game)
-            return "This key is used to unlock special doors. Move next to a locked door and press 'E' to use it."
+            return "This special key is used to unlock mysterious doors. Move next to a special door and press 'E' to use it."
         end
     },
 
@@ -272,7 +280,6 @@ local ITEM_APPEARANCE = {
     ["Leather Armor"] = { char = "🛡", color = { 0.6, 0.4, 0.2 } },
     ["Healing Potion"] = { char = "♣", color = { 1, 0.2, 0.2 } },
     ["Scroll"] = { char = "⁂", color = { 0.8, 0.8, 1 } },
-    ["Key"] = { char = "⚷", color = { 1, 1, 0 } },
 
     -- Enhanced weapons
     ["Iron Sword"] = { char = "⚔", color = { 0.9, 0.9, 0.9 } },
@@ -298,8 +305,9 @@ local ITEM_APPEARANCE = {
     ["Scroll of Identify"] = { char = "⁂", color = { 1, 1, 0.8 } },
     ["Scroll of Monster Confusion"] = { char = "⁂", color = { 0.8, 0.5, 1 } },
 
-    -- Special items
-    ["Special Key"] = { char = "⚷", color = { 1, 0.8, 0 } }
+    -- Keys
+    ["Key"] = { char = "🗝", color = { 0.8, 0.8, 0.8 } },
+    ["Special Key"] = { char = "⚷", color = { 1, 0.8, 0 } },
 }
 
 local function addTemporaryEffect(self, effectName, effect, player, currentTurn)

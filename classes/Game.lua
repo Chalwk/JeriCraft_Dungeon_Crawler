@@ -532,6 +532,17 @@ end
 -- up, right, down, left
 local directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } }
 
+local function hasKey(self, keyType)
+    local keyIndex = nil
+    for i, itemName in ipairs(self.player.inventory) do
+        if itemName == keyType then
+            keyIndex = i
+            break
+        end
+    end
+    return keyIndex
+end
+
 local function tryOpenDoor(self)
     for _, dir in ipairs(directions) do
         local checkX = self.player.x + dir[1]
@@ -543,39 +554,38 @@ local function tryOpenDoor(self)
             local tile = self.dungeon[checkY][checkX]
 
             if tile.type == "locked_door" then
-                -- Check if player has key
-                local hasKey = false
-                local keyIndex = nil
-                for i, itemName in ipairs(self.player.inventory) do
-                    if itemName == "Special Key" then
-                        hasKey = true
-                        keyIndex = i
-                        break
-                    end
-                end
-
+                -- Check if player has regular key for exit
+                local keyIndex = hasKey(self, "Key")
                 if hasKey then
-                    -- Unlock the door
-                    tile.type = "unlocked_door"
-                    tile.char = self.dungeonManager.TILES.UNLOCKED_DOOR
-                    tile.color = { 0.7, 0.7, 0.7 } -- Gray for unlocked door
+                    -- Unlock the exit door
+                    tile.type = "EXIT"
+                    tile.char = self.dungeonManager.TILES.EXIT
+                    tile.color = { 0.8, 0.8, 0.2 }
 
                     -- Remove key from inventory
                     table_remove(self.player.inventory, keyIndex)
 
-                    addMessage(self, "You unlock the door with the special key!")
+                    addMessage(self, "You unlock the exit door with the key!")
                     self.sounds:play("unlock")
                 else
-                    addMessage(self, "The door is locked. You need a special key to open it.")
+                    addMessage(self, "The exit is locked. You need a key to open it.")
                     self.sounds:play("locked")
                 end
                 return
-            elseif tile.type == "unlocked_door" then
-                addMessage(self, "The door is already unlocked.")
-                return
             elseif tile.type == "special_door" then
-                -- Enter the special room
-                enterSpecialRoom(self, checkX, checkY)
+                -- Check if player has special key for special room
+                local keyIndex = hasKey(self, "Special Key")
+                if keyIndex then
+                    -- Remove special key and enter special room
+                    table_remove(self.player.inventory, keyIndex)
+                    enterSpecialRoom(self, checkX, checkY)
+                else
+                    addMessage(self, "The mysterious door is locked. You need a special key to open it.")
+                    self.sounds:play("locked")
+                end
+                return
+            elseif tile.type == "EXIT" then
+                addMessage(self, "The exit is already unlocked. Step on it to descend.")
                 return
             end
         end

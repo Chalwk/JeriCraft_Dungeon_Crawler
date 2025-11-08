@@ -35,7 +35,8 @@ local TILES = {
     ARMOR = "🛡",
     POTION = "♣",
     SCROLL = "⁂",
-    KEY = "⚷",
+    KEY = "🗝",           -- Regular key for exit door
+    SPECIAL_KEY = "⚷",    -- Special key for special rooms
     LOCKED_DOOR = "🔒",
     UNLOCKED_DOOR = "🚪",
     SPECIAL_DOOR = "🚪",
@@ -81,8 +82,7 @@ local function getBasicItemDefinitions()
         { char = TILES.WEAPON, name = "Dagger",         color = { 0.8, 0.8, 0.8 } },
         { char = TILES.ARMOR,  name = "Leather Armor",  color = { 0.6, 0.4, 0.2 } },
         { char = TILES.POTION, name = "Healing Potion", color = { 1, 0.2, 0.2 } },
-        { char = TILES.SCROLL, name = "Scroll",         color = { 0.8, 0.8, 1 } },
-        { char = TILES.KEY,    name = "Key",            color = { 1, 1, 0 } }
+        { char = TILES.SCROLL, name = "Scroll",         color = { 0.8, 0.8, 1 } }
     }
 end
 
@@ -151,15 +151,19 @@ local function placeEntities(self, dungeon, monsters, items, player, room, isSpe
     end
 end
 
-local function placeSpecialKey(self, dungeon, items, monsters, player, rooms)
-    if #rooms < 2 then return end -- Need at least 2 rooms
+local function placeKey(self, dungeon, items, monsters, player, rooms, isSpecial)
+    if #rooms < 2 then return false end -- Need at least 2 rooms
 
-    -- Choose a random room (not the first room where player starts)
-    local keyRoomIndex = math_random(2, #rooms)
+    local keyRoomIndex
+    if isSpecial then
+        keyRoomIndex = math_random(2, #rooms) -- Exclude first room where player starts
+    else
+        keyRoomIndex = math_random(2, #rooms - 1) -- Exclude exit & first room
+    end
+
     local keyRoom = rooms[keyRoomIndex]
-
-    -- Find a valid position in the room
     local attempts = 0
+
     while attempts < 50 do
         local x = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
         local y = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
@@ -168,14 +172,16 @@ local function placeSpecialKey(self, dungeon, items, monsters, player, rooms)
             table_insert(items, {
                 x = x,
                 y = y,
-                char = TILES.KEY,
-                color = { 1, 0.8, 0 }, -- Gold color
-                name = "Special Key"
+                char = isSpecial and TILES.SPECIAL_KEY or TILES.KEY,
+                color = isSpecial and { 1, 0.8, 0 } or { 0.8, 0.8, 0.8 },
+                name = isSpecial and "Special Key" or "Key"
             })
             return true
         end
+
         attempts = attempts + 1
     end
+
     return false
 end
 
@@ -382,17 +388,22 @@ function DungeonManager:generateDungeon(player)
         end
     end
 
-    -- Place exactly ONE special key
+    -- Place ONE of each key
+    placeKey(self, dungeon, items, monsters, player, rooms)
     if specialDoorPlaced then
-        placeSpecialKey(self, dungeon, items, monsters, player, rooms)
+        placeKey(self, dungeon, items, monsters, player, rooms, true)
     end
 
-    -- Place exit in last room
+    -- Place LOCKED exit in last room
     if #rooms > 0 then
         local lastRoom = rooms[#rooms]
         local sx = math_random(lastRoom.x + 1, lastRoom.x + lastRoom.w - 2)
         local sy = math_random(lastRoom.y + 1, lastRoom.y + lastRoom.h - 2)
-        dungeon[sy][sx] = { type = "EXIT", char = TILES.EXIT, color = { 0.8, 0.8, 0.2 } }
+        dungeon[sy][sx] = {
+            type = "locked_door",
+            char = TILES.LOCKED_DOOR,
+            color = { 0.8, 0.8, 0.2 }
+        }
     end
 
     return dungeon, monsters, items, visibleTiles, specialDoors
