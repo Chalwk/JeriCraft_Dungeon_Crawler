@@ -322,6 +322,25 @@ local ITEM_APPEARANCE = {
     ["Scroll of Monster Confusion"] = { char = "⁂", color = { 0.8, 0.5, 1 } },
 }
 
+local ITEM_DESCRIPTIONS = {
+    weapon = "A weapon that increases your attack power when equipped.",
+    armor = "Armor that increases your defense when equipped.",
+    potion = "A consumable potion with magical effects.",
+    scroll = "A magical scroll that can be read for powerful effects.",
+    food = "Food that restores health when consumed.",
+    key = "A special key that can unlock mysterious doors."
+}
+
+local ENHANCED_ITEMS = {
+    "Iron Sword", "Steel Sword", "Magic Wand",
+    "Chain Mail", "Plate Armor", "Magic Robe",
+    "Greater Healing Potion", "Potion of Might",
+    "Potion of Invulnerability", "Potion of Berserk",
+    "Scroll of Strength", "Scroll of Protection",
+    "Scroll of Healing", "Scroll of Teleportation",
+    "Scroll of Identify", "Scroll of Monster Confusion"
+}
+
 local function addTemporaryEffect(self, effectName, effect, player, currentTurn)
     self.activeEffects[effectName] = {
         effect = effect,
@@ -389,43 +408,19 @@ function ItemManager:updateEffects(player, currentTurn)
     return expiredEffects
 end
 
-function ItemManager:isEquipment(itemName)
-    local effect = ITEM_EFFECTS[itemName]
-    return effect and (effect.type == "weapon" or effect.type == "armor")
-end
-
 function ItemManager:isConsumable(itemName)
     local effect = ITEM_EFFECTS[itemName]
     return effect and (effect.type == "potion" or effect.type == "scroll" or effect.type == "food")
 end
 
 function ItemManager:getRandomEnhancedItem()
-    local enhancedItems = {
-        "Iron Sword", "Steel Sword", "Magic Wand",
-        "Chain Mail", "Plate Armor", "Magic Robe",
-        "Greater Healing Potion", "Potion of Might",
-        "Potion of Invulnerability", "Potion of Berserk",
-        "Scroll of Strength", "Scroll of Protection",
-        "Scroll of Healing", "Scroll of Teleportation",
-        "Scroll of Identify", "Scroll of Monster Confusion"
-    }
-    return enhancedItems[math_random(#enhancedItems)]
+    return ENHANCED_ITEMS[math_random(#ENHANCED_ITEMS)]
 end
 
 function ItemManager:getItemDescription(itemName)
     local effect = ITEM_EFFECTS[itemName]
     if not effect then return "A mysterious item of unknown purpose." end
-
-    local descriptions = {
-        weapon = "A weapon that increases your attack power when equipped.",
-        armor = "Armor that increases your defense when equipped.",
-        potion = "A consumable potion with magical effects.",
-        scroll = "A magical scroll that can be read for powerful effects.",
-        food = "Food that restores health when consumed.",
-        key = "A special key that can unlock mysterious doors."
-    }
-
-    return descriptions[effect.type] or "A useful adventuring item."
+    return ITEM_DESCRIPTIONS[effect.type] or "A useful adventuring item."
 end
 
 return ItemManager
