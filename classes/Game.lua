@@ -59,7 +59,7 @@ end
 local function drawBorder(r, g, b, xOff, yOff, gridWidth, gridHeight)
     lg.setColor(r, g, b, 0.8)
     lg.setLineWidth(3)
-    lg.rectangle("line", xOff, yOff, gridWidth, gridHeight)
+    lg.rectangle("line", xOff - 5, yOff + 5, gridWidth + 5, gridHeight + 5)
     lg.setLineWidth(1)
 end
 
