@@ -814,7 +814,7 @@ function Game:useSelectedItem()
 
     -- Remove the item from inventory if it's consumable (except equipment)
     if self.itemManager:isConsumable(itemName) then
-        table.remove(self.player.inventory, self.selectedItem)
+        table_remove(self.player.inventory, self.selectedItem)
         if #self.player.inventory == 0 then
             self.showInventory = false
         else
