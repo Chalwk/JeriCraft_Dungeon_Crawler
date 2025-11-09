@@ -41,7 +41,7 @@ local DECORATION_CHANCE = 0.08
 
 -- ASCII characters for display
 local TILES = {
-    WALL = "▓",
+    WALL = "█",
     WALL_ALT = "▒",
     WALL_CORNER = "┼",
     FLOOR = "·",
@@ -151,11 +151,7 @@ local function addRoomDecorations(dungeon, room)
             if (y == room.y - 1 or y == room.y + room.h + 1 or
                     x == room.x - 1 or x == room.x + room.w + 1) then
                 if dungeon[y] and dungeon[y][x] and dungeon[y][x].type == "wall" and math_random() < 0.05 then
-                    dungeon[y][x] = {
-                        type = "wall",
-                        char = TILES.MOSS,
-                        color = { 0.2, 0.6, 0.3 }
-                    }
+                    dungeon[y][x] = { type = "wall", char = TILES.MOSS, color = { 0.2, 0.6, 0.3 } }
                 end
             end
         end
@@ -390,11 +386,7 @@ function DungeonManager:generateSpecialRoom()
 
     -- Place the exit door
     if exitX >= 1 and exitX <= DUNGEON_WIDTH and exitY >= 1 and exitY <= DUNGEON_HEIGHT then
-        specialDungeon[exitY][exitX] = {
-            type = "special_exit",
-            char = TILES.DOOR,
-            color = { 0.7, 0.7, 0.9 } -- Lighter, magical door
-        }
+        specialDungeon[exitY][exitX] = { type = "special_exit", char = TILES.DOOR, color = { 0.7, 0.7, 0.9 } }
     end
 
     -- Place better monsters and loot in special room
@@ -461,11 +453,7 @@ function DungeonManager:generateDungeon(player)
                 if not specialDoorPlaced and i > 1 and math_random() < SPECIAL_ROOM_CHANCE then
                     local doorX, doorY = createSpecialDoor(dungeon, newRoom)
                     if doorX and doorY then
-                        table_insert(specialDoors, {
-                            doorX = doorX,
-                            doorY = doorY,
-                            room = newRoom
-                        })
+                        table_insert(specialDoors, { doorX = doorX, doorY = doorY, room = newRoom })
                         specialDoorPlaced = true
                     end
                 end
@@ -488,11 +476,7 @@ function DungeonManager:generateDungeon(player)
         local lastRoom = rooms[#rooms]
         local sx = math_random(lastRoom.x + 1, lastRoom.x + lastRoom.w - 2)
         local sy = math_random(lastRoom.y + 1, lastRoom.y + lastRoom.h - 2)
-        dungeon[sy][sx] = {
-            type = "locked_door",
-            char = TILES.DOOR,
-            color = { 0.8, 0, 0 }
-        }
+        dungeon[sy][sx] = { type = "locked_door", char = TILES.DOOR, color = { 0.8, 0, 0 } }
     end
 
     return dungeon, monsters, items, visibleTiles, specialDoors
