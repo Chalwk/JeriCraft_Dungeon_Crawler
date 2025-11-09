@@ -21,22 +21,46 @@ Game.__index = Game
 
 local UI_WIDTH = 200
 local UI_PADDING = 8
+local MAX_MESSAGES = 6
+local DIRECTIONS = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } } -- up, right, down, left
+local UI_BG_COLOR = { 0.1, 0.1, 0.2, 0.9 }
+local UI_BORDER_COLOR = { 0.3, 0.3, 0.8 }
+local UI_TEXT_COLOR = { 0.8, 0.9, 1.0 }
+
+local CONTROLS = {
+    "↑↓←→ / WASD - Move",
+    "SPACE - Wait",
+    "R - Rest/Heal",
+    "E - Use/Open",
+    "I - Inventory",
+    "ESC - Menu"
+}
+
+local DUNGEON_WIDTH, DUNGEON_HEIGHT
+local TILES
+
+local PLAYER_STATS = {
+    warrior = { hp = 25, maxHp = 25, attack = 6, defense = 3, gold = 0 },
+    jc = { hp = 20, maxHp = 20, attack = 5, defense = 2, gold = 10 },
+    wizard = { hp = 15, maxHp = 15, attack = 4, defense = 1, gold = 5 }
+}
 
 local function addMessage(self, text)
     table_insert(self.messageLog, 1, text)
-    if #self.messageLog > 6 then
-        table_remove(self.messageLog, 7)
+    if #self.messageLog > MAX_MESSAGES then
+        table_remove(self.messageLog, MAX_MESSAGES + 1)
     end
 end
 
 local function levelUp(self)
-    self.player.level = self.player.level + 1
-    self.player.maxHp = self.player.maxHp + 5
-    self.player.hp = self.player.maxHp
-    self.player.attack = self.player.attack + 2
-    self.player.defense = self.player.defense + 1
+    local player = self.player
+    player.level = player.level + 1
+    player.maxHp = player.maxHp + 5
+    player.hp = player.maxHp
+    player.attack = player.attack + 2
+    player.defense = player.defense + 1
 
-    addMessage(self, "You reached level " .. self.player.level .. "! You feel stronger!")
+    addMessage(self, "You reached level " .. player.level .. "! You feel stronger!")
     self.sounds:play("level_up")
 end
 
@@ -44,16 +68,19 @@ local function calculateTileSize(self)
     local availableWidth = self.screenWidth - UI_WIDTH - 20
     local availableHeight = self.screenHeight - 100
 
-    local tileWidth = availableWidth / self.dungeonManager.DUNGEON_WIDTH
-    local tileHeight = availableHeight / self.dungeonManager.DUNGEON_HEIGHT
+    local tileWidth = availableWidth / DUNGEON_WIDTH
+    local tileHeight = availableHeight / DUNGEON_HEIGHT
 
     self.tileSize = math_max(8, math_floor(math_min(tileWidth, tileHeight)))
 
-    local dungeonPixelWidth = self.dungeonManager.DUNGEON_WIDTH * self.tileSize
-    local dungeonPixelHeight = self.dungeonManager.DUNGEON_HEIGHT * self.tileSize
+    local dungeonPixelWidth = DUNGEON_WIDTH * self.tileSize
+    local dungeonPixelHeight = DUNGEON_HEIGHT * self.tileSize
 
     self.dungeonOffsetX = UI_WIDTH + (availableWidth - dungeonPixelWidth) / 2
     self.dungeonOffsetY = 50 + (availableHeight - dungeonPixelHeight) / 2
+
+    -- Update font when tile size changes
+    self.dungeonFont = self.fonts:getFontOfSize(self.tileSize)
 end
 
 local function drawBorder(r, g, b, xOff, yOff, gridWidth, gridHeight)
@@ -64,13 +91,10 @@ local function drawBorder(r, g, b, xOff, yOff, gridWidth, gridHeight)
 end
 
 local function drawDungeon(self)
-    calculateTileSize(self)
-
     local isSpecialRoom = self.inSpecialRoom
     local tileSize = self.tileSize
     local offsetX, offsetY = self.dungeonOffsetX, self.dungeonOffsetY
-    local dungeonWidth, dungeonHeight = self.dungeonManager.DUNGEON_WIDTH, self.dungeonManager.DUNGEON_HEIGHT
-    local gridWidth, gridHeight = dungeonWidth * tileSize, dungeonHeight * tileSize
+    local gridWidth, gridHeight = DUNGEON_WIDTH * tileSize, DUNGEON_HEIGHT * tileSize
 
     -- Choose data sources
     local dungeon = isSpecialRoom and self.specialRoomDungeon or self.dungeon
@@ -80,32 +104,35 @@ local function drawDungeon(self)
     local monsters = isSpecialRoom and self.specialRoomMonsters or self.monsters
     local borderColor = isSpecialRoom and { 0.8, 0.6, 0.2 } or { 1, 1, 1 }
 
-    -- Set font once
-    if not self.dungeonFont or self.dungeonFont:getHeight() ~= tileSize then
-        self.dungeonFont = self.fonts:getFontOfSize(tileSize)
-    end
+    -- Set font
     self.fonts:setFont(self.dungeonFont)
 
     -- Draw border around grid
     drawBorder(borderColor[1], borderColor[2], borderColor[3], offsetX, offsetY, gridWidth, gridHeight)
 
-    -- Draw tiles with optimized loops
-    for y = 1, self.dungeonManager.DUNGEON_HEIGHT do
-        for x = 1, self.dungeonManager.DUNGEON_WIDTH do
-            local tile = dungeon[y][x]
+    local playerX, playerY = self.player.x, self.player.y
+
+    -- Draw tiles
+    for y = 1, DUNGEON_HEIGHT do
+        local row = dungeon[y]
+        local visibleRow = visibleTiles[y]
+        local exploredRow = exploredTiles and exploredTiles[y]
+
+        for x = 1, DUNGEON_WIDTH do
+            local tile = row[x]
             local screenX, screenY = offsetX + (x - 1) * tileSize, offsetY + (y - 1) * tileSize
 
-            if visibleTiles[y][x] then
+            if visibleRow[x] then
                 lg.setColor(tile.color)
                 lg.print(tile.char, screenX, screenY)
-            elseif exploredTiles and exploredTiles[y][x] then
+            elseif exploredRow and exploredRow[x] then
                 lg.setColor(tile.color[1] * 0.3, tile.color[2] * 0.3, tile.color[3] * 0.3)
                 lg.print(tile.char, screenX, screenY)
             end
         end
     end
 
-    -- Draw items and monsters in single passes
+    -- Draw items and monsters
     for i = 1, #items do
         local item = items[i]
         if visibleTiles[item.y][item.x] then
@@ -124,12 +151,8 @@ local function drawDungeon(self)
 
     -- Draw player
     lg.setColor(self.player.color)
-    lg.print(self.player.char, offsetX + (self.player.x - 1) * tileSize, offsetY + (self.player.y - 1) * tileSize)
+    lg.print(self.player.char, offsetX + (playerX - 1) * tileSize, offsetY + (playerY - 1) * tileSize)
 end
-
-local UI_BG_COLOR = { 0.1, 0.1, 0.2, 0.9 }
-local UI_BORDER_COLOR = { 0.3, 0.3, 0.8 }
-local UI_TEXT_COLOR = { 0.8, 0.9, 1.0 }
 
 local function drawMessageLog(self, x)
     local boxWidth = UI_WIDTH + 120 - UI_PADDING * 2
@@ -147,20 +170,10 @@ local function drawMessageLog(self, x)
     -- Messages with typing effect
     lg.setColor(0.8, 1.0, 0.8)
     self.fonts:setFont("tinyFont")
-    local maxMessages = 6
-    for i = 1, math_min(#self.messageLog, maxMessages) do
+    for i = 1, math_min(#self.messageLog, MAX_MESSAGES) do
         lg.print(self.messageLog[i], x + 4, boxY + 4 + (i - 1) * 18)
     end
 end
-
-local controls = {
-    "↑↓←→ / WASD - Move",
-    "SPACE - Wait",
-    "R - Rest/Heal",
-    "E - Use/Open",
-    "I - Inventory",
-    "ESC - Menu"
-}
 
 local function drawUI(self)
     local x, y = UI_PADDING, UI_PADDING
@@ -180,16 +193,17 @@ local function drawUI(self)
     y = y + 40
 
     local text_offset = 10
+    local player = self.player
 
     -- Player stats
     self.fonts:setFont("smallFont")
     lg.setColor(UI_TEXT_COLOR)
     lg.print("♚ Level: " .. self.dungeonLevel, x + text_offset, y); y = y + 24
-    lg.print("♥ HP: " .. self.player.hp .. "/" .. self.player.maxHp, x + text_offset, y); y = y + 24
-    lg.print("⚔ Atk: " .. self.player.attack, x + text_offset, y); y = y + 20
-    lg.print("🛡 Def: " .. self.player.defense, x + text_offset, y); y = y + 20
-    lg.print("💰 Gold: " .. self.player.gold, x + text_offset, y); y = y + 20
-    lg.print("⭐ XP: " .. self.player.xp .. "/" .. (self.player.level * 10), x + text_offset, y); y = y + 20
+    lg.print("♥ HP: " .. player.hp .. "/" .. player.maxHp, x + text_offset, y); y = y + 24
+    lg.print("⚔ Atk: " .. player.attack, x + text_offset, y); y = y + 20
+    lg.print("🛡 Def: " .. player.defense, x + text_offset, y); y = y + 20
+    lg.print("💰 Gold: " .. player.gold, x + text_offset, y); y = y + 20
+    lg.print("⭐ XP: " .. player.xp .. "/" .. (player.level * 10), x + text_offset, y); y = y + 20
     lg.print("⏱ Turn: " .. self.turn, x + text_offset, y); y = y + 20
 
     -- Location indicator
@@ -207,7 +221,7 @@ local function drawUI(self)
     lg.print("╔═CONTROLS═╗", x, y); y = y + 37
     lg.setColor(UI_TEXT_COLOR)
     self.fonts:setFont("smallFont")
-    for _, control in ipairs(controls) do
+    for _, control in ipairs(CONTROLS) do
         lg.print(control, x + text_offset, y)
         y = y + 20
     end
@@ -243,14 +257,15 @@ local function drawInventory(self)
     -- Inventory list area
     self.fonts:setFont("listFont")
 
-    if #self.player.inventory == 0 then
+    local inventory = self.player.inventory
+    if #inventory == 0 then
         lg.setColor(0.8, 0.8, 0.8)
         lg.printf("Your inventory is empty.", panelX, panelY + panelH / 2 - 10, panelW, "center")
     else
         local startY = panelY + 75
         local itemSpacing = 26
 
-        for i, item in ipairs(self.player.inventory) do
+        for i, item in ipairs(inventory) do
             local y = startY + (i - 1) * itemSpacing
             local isSelected = (i == self.selectedItem)
 
@@ -335,14 +350,14 @@ local function pickupItem(self, itemIndex, inSpecialRoom)
     local items = inSpecialRoom and self.specialRoomItems or self.items
     local item = items[itemIndex]
 
-    if item.char == self.dungeonManager.TILES.GOLD then
+    if item.char == TILES.GOLD then
         local gold = math_random(1, 10)
         self.player.gold = self.player.gold + gold
         addMessage(self, "You found " .. gold .. " gold pieces!")
     elseif item.name == "Food" then
         table_insert(self.player.inventory, item.name)
         addMessage(self, "You pick up " .. item.name)
-    elseif item.char == self.dungeonManager.TILES.POTION and item.name == "Healing Potion" then
+    elseif item.char == TILES.POTION and item.name == "Healing Potion" then
         local heal = math_random(5, 10)
         self.player.hp = math_min(self.player.maxHp, self.player.hp + heal)
         addMessage(self, "You drink a healing potion and restore " .. heal .. " HP!")
@@ -384,9 +399,9 @@ local function generateDungeon(self)
     self.specialDoors = specialDoors or {}
 
     -- Reset explored tiles for the new level
-    for y = 1, self.dungeonManager.DUNGEON_HEIGHT do
+    for y = 1, DUNGEON_HEIGHT do
         self.exploredTiles[y] = {}
-        for x = 1, self.dungeonManager.DUNGEON_WIDTH do
+        for x = 1, DUNGEON_WIDTH do
             self.exploredTiles[y][x] = false
         end
     end
@@ -400,7 +415,6 @@ local function enterSpecialRoom(self, doorX, doorY)
 
     -- Check if we already have a cached room for this door
     if self.specialRoomCache[cacheKey] then
-        -- Load from cache
         local cached = self.specialRoomCache[cacheKey]
         self.specialRoomDungeon = cached.dungeon
         self.specialRoomMonsters = cached.monsters
@@ -424,7 +438,6 @@ local function enterSpecialRoom(self, doorX, doorY)
         self.specialRoomExitY = exitY
         self.specialRoom = room
 
-        -- Cache the special room
         self.specialRoomCache[cacheKey] = {
             dungeon = specialDungeon,
             monsters = monsters,
@@ -454,10 +467,10 @@ local function enterSpecialRoom(self, doorX, doorY)
     self.sounds:play("unlock")
 
     -- Make entire special room visible
-    for y = self.specialRoom.y, self.specialRoom.y + self.specialRoom.h do
-        for x = self.specialRoom.x, self.specialRoom.x + self.specialRoom.w do
-            if y >= 1 and y <= self.dungeonManager.DUNGEON_HEIGHT and
-                x >= 1 and x <= self.dungeonManager.DUNGEON_WIDTH then
+    local room = self.specialRoom
+    for y = room.y, room.y + room.h do
+        for x = room.x, room.x + room.w do
+            if y >= 1 and y <= DUNGEON_HEIGHT and x >= 1 and x <= DUNGEON_WIDTH then
                 self.specialRoomVisibleTiles[y][x] = true
             end
         end
@@ -551,33 +564,28 @@ local function monsterTurns(self, inSpecialRoom)
     end
 end
 
--- up, right, down, left
-local directions = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } }
-
 local function hasKey(self, keyType)
-    local keyIndex = nil
-    for i, itemName in ipairs(self.player.inventory) do
-        if itemName == keyType then
-            keyIndex = i
-            break
-        end
+    local inventory = self.player.inventory
+    for i, itemName in ipairs(inventory) do
+        if itemName == keyType then return i end
     end
-    return keyIndex
+    return nil
 end
 
 local function tryOpenDoor(self)
-    for _, dir in ipairs(directions) do
-        local checkX = self.player.x + dir[1]
-        local checkY = self.player.y + dir[2]
-        if checkX >= 1 and checkX <= self.dungeonManager.DUNGEON_WIDTH and
-            checkY >= 1 and checkY <= self.dungeonManager.DUNGEON_HEIGHT then
+    local playerX, playerY = self.player.x, self.player.y
+
+    for _, dir in ipairs(DIRECTIONS) do
+        local checkX = playerX + dir[1]
+        local checkY = playerY + dir[2]
+        if checkX >= 1 and checkX <= DUNGEON_WIDTH and checkY >= 1 and checkY <= DUNGEON_HEIGHT then
             local tile = self.dungeon[checkY][checkX]
 
             if tile.type == "locked_door" then
                 local keyIndex = hasKey(self, "Key")
                 if keyIndex then
                     tile.type = "EXIT"
-                    tile.char = self.dungeonManager.TILES.EXIT
+                    tile.char = TILES.EXIT
                     tile.color = { 0.8, 0.8, 0.2 }
                     table_remove(self.player.inventory, keyIndex)
                     addMessage(self, "You unlock the exit door with the key!")
@@ -626,11 +634,16 @@ function Game.new(fontManager)
     instance.itemManager = ItemManager.new()
     instance.dungeonManager = DungeonManager.new(ItemManager)
 
+    -- Cache dungeon dimensions and tiles
+    DUNGEON_WIDTH = instance.dungeonManager.DUNGEON_WIDTH
+    DUNGEON_HEIGHT = instance.dungeonManager.DUNGEON_HEIGHT
+    TILES = instance.dungeonManager.TILES
+
     -- Player state
     instance.player = {
         x = 1,
         y = 1,
-        char = instance.dungeonManager.TILES.PLAYER,
+        char = TILES.PLAYER,
         color = { 1, 1, 1 },
         hp = 20,
         maxHp = 20,
@@ -677,6 +690,8 @@ function Game.new(fontManager)
 
     local soundManager = SoundManager.new()
     instance.sounds = soundManager
+
+    calculateTileSize(instance)
 
     return instance
 end
@@ -760,8 +775,7 @@ function Game:movePlayer(dx, dy)
     local newY = self.player.y + dy
 
     -- Check bounds
-    if newX < 1 or newX > self.dungeonManager.DUNGEON_WIDTH
-        or newY < 1 or newY > self.dungeonManager.DUNGEON_HEIGHT then
+    if newX < 1 or newX > DUNGEON_WIDTH or newY < 1 or newY > DUNGEON_HEIGHT then
         addMessage(self, "You can't go that way!")
         self.sounds:play("bump")
         return
@@ -866,11 +880,9 @@ function Game:draw()
     lg.translate(offsetX, offsetY)
 
     drawDungeon(self)
-
     drawUI(self)
 
     if self.showInventory then drawInventory(self) end
-
     if self.gameOver then drawGameOver(self) end
 
     lg.pop()
@@ -920,53 +932,21 @@ function Game:startNewGame(difficulty, character)
     self.specialRoom = nil
     self.specialRoomCache = {}
 
-    -- Set up player based on character class
-    if self.character == "warrior" then
-        self.player = {
-            x = 1,
-            y = 1,
-            char = self.dungeonManager.TILES.PLAYER,
-            color = { 1, 1, 1 },
-            hp = 25,
-            maxHp = 25,
-            attack = 6,
-            defense = 3,
-            gold = 0,
-            xp = 0,
-            level = 1,
-            inventory = {}
-        }
-    elseif self.character == "jc" then
-        self.player = {
-            x = 1,
-            y = 1,
-            char = self.dungeonManager.TILES.PLAYER,
-            color = { 1, 1, 1 },
-            hp = 20,
-            maxHp = 20,
-            attack = 5,
-            defense = 2,
-            gold = 10,
-            xp = 0,
-            level = 1,
-            inventory = {}
-        }
-    else -- wizard
-        self.player = {
-            x = 1,
-            y = 1,
-            char = self.dungeonManager.TILES.PLAYER,
-            color = { 1, 1, 1 },
-            hp = 15,
-            maxHp = 15,
-            attack = 4,
-            defense = 1,
-            gold = 5,
-            xp = 0,
-            level = 1,
-            inventory = {}
-        }
-    end
+    local stats = PLAYER_STATS[self.character] or PLAYER_STATS.warrior
+    self.player = {
+        x = 1,
+        y = 1,
+        char = TILES.PLAYER,
+        color = { 1, 1, 1 },
+        hp = stats.hp,
+        maxHp = stats.maxHp,
+        attack = stats.attack,
+        defense = stats.defense,
+        gold = stats.gold,
+        xp = 0,
+        level = 1,
+        inventory = {}
+    }
 
     self.dungeonLevel = 1
     self.turn = 0
@@ -976,9 +956,9 @@ function Game:startNewGame(difficulty, character)
     self.won = false
 
     self.exploredTiles = {}
-    for y = 1, self.dungeonManager.DUNGEON_HEIGHT do
+    for y = 1, DUNGEON_HEIGHT do
         self.exploredTiles[y] = {}
-        for x = 1, self.dungeonManager.DUNGEON_WIDTH do
+        for x = 1, DUNGEON_WIDTH do
             self.exploredTiles[y][x] = false
         end
     end
