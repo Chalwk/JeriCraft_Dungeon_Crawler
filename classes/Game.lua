@@ -575,7 +575,7 @@ local function tryOpenDoor(self)
 
             if tile.type == "locked_door" then
                 local keyIndex = hasKey(self, "Key")
-                if hasKey then
+                if keyIndex then
                     tile.type = "EXIT"
                     tile.char = self.dungeonManager.TILES.EXIT
                     tile.color = { 0.8, 0.8, 0.2 }
