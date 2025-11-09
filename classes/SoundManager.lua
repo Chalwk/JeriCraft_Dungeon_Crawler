@@ -25,10 +25,10 @@ function SoundManager.new()
 
     for name, sound in pairs(instance.sounds) do
         if name == "ambience" then
-            sound:setVolume(1)
+            instance:setVolume(sound, 1)
             sound:play(true)
         else
-            sound:setVolume(0.5)
+            instance:setVolume(sound, 0.5)
         end
     end
     return instance

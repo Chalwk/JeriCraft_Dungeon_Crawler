@@ -49,7 +49,7 @@ local TILES = {
     FLOOR_DUST = "˙",
     EXIT = "🚪",
     PLAYER = "♜",
-    DOOR = "▣",
+    DOOR = "🚪",
     SPECIAL_WALL = "◙",
     SPECIAL_FLOOR = "✦",
     PILLAR = "█",
@@ -138,7 +138,7 @@ local function addRoomDecorations(dungeon, room)
     -- Add pillars in larger rooms
     if room.w >= 6 and room.h >= 6 then
         local numPillars = math_random(1, 2)
-        for i = 1, numPillars do
+        for _ = 1, numPillars do
             local pillarX = math_random(room.x + 2, room.x + room.w - 2)
             local pillarY = math_random(room.y + 2, room.y + room.h - 2)
             dungeon[pillarY][pillarX] = { type = "wall", char = TILES.PILLAR, color = { 0.5, 0.5, 0.6 } }
@@ -168,7 +168,7 @@ local function placeEntities(self, dungeon, monsters, items, player, room, isSpe
         local x = math_random(room.x + 1, room.x + room.w - 2)
         local y = math_random(room.y + 1, room.y + room.h - 2)
 
-        if not self:isBlocked(dungeon, monsters, player, x, y) then
+        if not self:isBlocked(dungeon, monsters, player, x, y, items) then
             local monster = MONSTERS[math_random(#MONSTERS)]
             table_insert(monsters, {
                 x = x,
@@ -190,7 +190,7 @@ local function placeEntities(self, dungeon, monsters, items, player, room, isSpe
         local x = math_random(room.x + 1, room.x + room.w - 2)
         local y = math_random(room.y + 1, room.y + room.h - 2)
 
-        if not self:isBlocked(dungeon, monsters, player, x, y) then
+        if not self:isBlocked(dungeon, monsters, player, x, y, items) then
             local itemName, itemChar, itemColor
 
             if isSpecialRoom then
@@ -227,7 +227,7 @@ local function placeKey(self, dungeon, items, monsters, player, rooms, isSpecial
         local x = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
         local y = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
 
-        if not self:isBlocked(dungeon, monsters, player, x, y) then
+        if not self:isBlocked(dungeon, monsters, player, x, y, items) then
             local keyName = isSpecial and "Special Key" or "Key"
             table_insert(items, {
                 x = x,
@@ -519,7 +519,7 @@ function DungeonManager:updateFOV(player, visibleTiles, exploredTiles)
     end
 end
 
-function DungeonManager:isBlocked(dungeon, monsters, player, x, y)
+function DungeonManager:isBlocked(dungeon, monsters, player, x, y, items)
     if not dungeon[y] or not dungeon[y][x] then return true end
 
     local t = dungeon[y][x].type
@@ -527,6 +527,13 @@ function DungeonManager:isBlocked(dungeon, monsters, player, x, y)
 
     for _, monster in ipairs(monsters) do
         if monster.x == x and monster.y == y then return true end
+    end
+
+    -- Check for existing items
+    if items then
+        for _, item in ipairs(items) do
+            if item.x == x and item.y == y then return true end
+        end
     end
 
     if player.x == x and player.y == y then return true end

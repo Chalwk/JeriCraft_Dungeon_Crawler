@@ -131,7 +131,7 @@ local UI_BG_COLOR = { 0.1, 0.1, 0.2, 0.9 }
 local UI_BORDER_COLOR = { 0.3, 0.3, 0.8 }
 local UI_TEXT_COLOR = { 0.8, 0.9, 1.0 }
 
-local function drawMessageLog(self, x, y)
+local function drawMessageLog(self, x)
     local boxWidth = UI_WIDTH + 120 - UI_PADDING * 2
     local boxHeight = 120
     local boxY = self.screenHeight - boxHeight - UI_PADDING
@@ -213,7 +213,7 @@ local function drawUI(self)
     end
     y = y + 10
 
-    drawMessageLog(self, x, y)
+    drawMessageLog(self, x)
 end
 
 local function drawInventory(self)
@@ -735,6 +735,13 @@ local function handleMovement(self, newX, newY, dungeon, monsters, items, isSpec
             self.turn = self.turn + 1
             return true
         end
+    end
+
+    -- Check if tile is blocked by other entities
+    if self.dungeonManager:isBlocked(dungeon, monsterList, self.player, newX, newY, itemList) then
+        addMessage(self, "You cannot move there.")
+        self.sounds:play("bump")
+        return false
     end
 
     -- Normal movement

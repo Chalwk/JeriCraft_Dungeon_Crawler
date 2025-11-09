@@ -199,7 +199,7 @@ local function updateLoadingScreen(dt)
     end
 
     -- Update particles
-    for i, particle in ipairs(loadingScreen.particles) do
+    for _, particle in ipairs(loadingScreen.particles) do
         particle.timer = particle.timer + dt
         particle.y = particle.y - particle.speed * dt
 
@@ -288,7 +288,7 @@ function love.draw()
     end
 end
 
-function love.mousepressed(x, y, button, istouch)
+function love.mousepressed(x, y, button)
     if button == 1 then
         if gameState == "menu" then
             local action = menu:handleClick(x, y, "menu")
@@ -367,7 +367,7 @@ function love.keypressed(key)
     end
 end
 
-function love.resize(w, h)
+function love.resize()
     updateScreenSize()
     if gameState == "loading" then
         initLoadingParticles()
