@@ -123,9 +123,6 @@ local function drawDungeon(self)
     end
 
     -- Draw player
-    local font = self.fonts:getFontOfSize(24)
-    self.fonts:setFont(font)
-
     lg.setColor(self.player.color)
     lg.print(self.player.char, offsetX + (self.player.x - 1) * tileSize, offsetY + (self.player.y - 1) * tileSize)
 end
