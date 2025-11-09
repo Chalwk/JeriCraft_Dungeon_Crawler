@@ -6,215 +6,142 @@ local ipairs = ipairs
 local math_pi = math.pi
 local math_sin = math.sin
 local table_insert = table.insert
-
 local math_random = love.math.random
 local lg = love.graphics
 
 local BackgroundManager = {}
 BackgroundManager.__index = BackgroundManager
 
-local function initFloatingSymbols(self)
-    self.floatingSymbols = {}
-    local symbolCount = 40
+local function initTorchMotes(self)
+    self.torchMotes = {}
+    local moteCount = 50
 
-    for _ = 1, symbolCount do
-        table_insert(self.floatingSymbols, {
+    for _ = 1, moteCount do
+        table_insert(self.torchMotes, {
             x = math_random() * 1000,
             y = math_random() * 1000,
-            size = math_random(16, 24),
-            speedX = math_random(-20, 20),
-            speedY = math_random(-20, 20),
-            rotation = math_random() * math_pi * 2,
-            rotationSpeed = (math_random() - 0.5) * 2,
-            bobSpeed = math_random(1, 3),
-            bobAmount = math_random(2, 8),
-            char = math_random() > 0.5 and "π" or "·",
-            alpha = math_random(0.3, 0.7),
-            isRevealed = math_random() > 0.7,
-            isGhost = math_random() > 0.8,
-            color = {
-                math_random(0.4, 0.6),
-                math_random(0.3, 0.5),
-                math_random(0.5, 0.7)
-            }
+            size = math_random(1.5, 3.5),
+            speedX = math_random(-5, 5),
+            speedY = math_random(-10, -3),
+            alpha = math_random(0.2, 0.5),
+            flickerSpeed = math_random(2, 4),
+            flickerPhase = math_random() * math_pi * 2,
+            warmTone = math_random() > 0.4
         })
     end
 end
 
-local function initFloatingMonsters(self)
-    self.floatingMonsters = {}
-    local monsterCount = 8
+local function initShadowWisps(self)
+    self.shadowWisps = {}
+    local wispCount = 10
 
-    for _ = 1, monsterCount do
-        table_insert(self.floatingMonsters, {
+    for _ = 1, wispCount do
+        table_insert(self.shadowWisps, {
             x = math_random() * 1000,
             y = math_random() * 1000,
-            size = math_random(0.3, 0.8),
-            speedX = math_random(-15, 15),
-            speedY = math_random(-15, 15),
+            size = math_random(0.5, 1.5),
+            speedX = math_random(-10, 10),
+            speedY = math_random(-5, 5),
             rotation = math_random() * math_pi * 2,
-            rotationSpeed = (math_random() - 0.5) * 1,
-            bobSpeed = math_random(0.5, 2),
-            bobAmount = math_random(1, 4),
-            alpha = math_random(0.1, 0.3),
-            pulseSpeed = math_random(0.5, 1.5),
+            rotationSpeed = (math_random() - 0.5) * 0.3,
+            alpha = math_random(0.08, 0.2),
+            pulseSpeed = math_random(0.3, 0.8),
             pulsePhase = math_random() * math_pi * 2,
-            char = math_random() > 0.5 and "†" or "‡"
         })
     end
 end
 
 function BackgroundManager.new(fontManager)
     local instance = setmetatable({}, BackgroundManager)
-    instance.floatingSymbols = {}
-    instance.floatingMonsters = {}
     instance.time = 0
-    instance.pulseValue = 0
     instance.fonts = fontManager
 
-    initFloatingSymbols(instance)
-    initFloatingMonsters(instance)
-
+    initTorchMotes(instance)
+    initShadowWisps(instance)
     return instance
 end
 
 function BackgroundManager:update(dt)
     self.time = self.time + dt
-    self.pulseValue = math_sin(self.time * 2) * 0.5 + 0.5
 
-    -- Update floating symbols
-    for _, symbol in ipairs(self.floatingSymbols) do
-        symbol.x = symbol.x + symbol.speedX * dt
-        symbol.y = symbol.y + symbol.speedY * dt
+    for _, mote in ipairs(self.torchMotes) do
+        mote.x = mote.x + mote.speedX * dt
+        mote.y = mote.y + mote.speedY * dt
 
-        -- Bobbing motion
-        symbol.y = symbol.y + math_sin(self.time * symbol.bobSpeed) * symbol.bobAmount * dt
-        symbol.rotation = symbol.rotation + symbol.rotationSpeed * dt
-
-        -- Wrap around screen edges
-        if symbol.x < -50 then symbol.x = 1050 end
-        if symbol.x > 1050 then symbol.x = -50 end
-        if symbol.y < -50 then symbol.y = 1050 end
-        if symbol.y > 1050 then symbol.y = -50 end
-
-        -- Occasionally change revealed state
-        if math_random() < 0.01 then symbol.isRevealed = not symbol.isRevealed end
+        if mote.y < -20 then mote.y = 1020 end
+        if mote.x < -20 then mote.x = 1020 end
+        if mote.x > 1020 then mote.x = -20 end
     end
 
-    -- Update floating monsters
-    for _, monster in ipairs(self.floatingMonsters) do
-        monster.x = monster.x + monster.speedX * dt
-        monster.y = monster.y + monster.speedY * dt
+    for _, wisp in ipairs(self.shadowWisps) do
+        wisp.x = wisp.x + wisp.speedX * dt
+        wisp.y = wisp.y + wisp.speedY * dt
+        wisp.rotation = wisp.rotation + wisp.rotationSpeed * dt
 
-        -- Bobbing motion
-        monster.y = monster.y + math_sin(self.time * monster.bobSpeed) * monster.bobAmount * dt
-        monster.rotation = monster.rotation + monster.rotationSpeed * dt
-
-        -- Wrap around screen edges
-        if monster.x < -100 then monster.x = 1100 end
-        if monster.x > 1100 then monster.x = -100 end
-        if monster.y < -100 then monster.y = 1100 end
-        if monster.y > 1100 then monster.y = -100 end
+        if wisp.x < -100 then wisp.x = 1100 end
+        if wisp.x > 1100 then wisp.x = -100 end
+        if wisp.y < -100 then wisp.y = 1100 end
+        if wisp.y > 1100 then wisp.y = -100 end
     end
 end
 
 function BackgroundManager:drawMenuBackground(screenWidth, screenHeight, time)
-    -- Dark, dungeon-like gradient
-    for y = 0, screenHeight, 2 do
-        local progress = y / screenHeight
-        local pulse = (math_sin(time * 2 + progress * 4) + 1) * 0.05
-        local wave = math_sin(progress * 8 + time * 3) * 0.03
-
-        local r = 0.05 + progress * 0.2 + pulse + wave
-        local g = 0.03 + progress * 0.1 + pulse
-        local b = 0.08 + progress * 0.15 + pulse
-
-        lg.setColor(r, g, b, 0.8)
-        lg.rectangle("fill", 0, y, screenWidth, 2)
+    -- Warm torchlight gradient
+    local cx, cy = screenWidth / 2, screenHeight / 2
+    for r = 0, screenWidth * 0.8, 4 do
+        local progress = r / (screenWidth * 0.8)
+        local flicker = math_sin(time * 3 + progress * 10) * 0.02
+        lg.setColor(0.15 + flicker, 0.08 + flicker, 0.02, 0.9 - progress * 0.9)
+        lg.circle("fill", cx, cy, r)
     end
 
-    self.fonts:setFont("smallFont")
-
-    -- Draw floating monsters
-    for _, monster in ipairs(self.floatingMonsters) do
-        local pulse = (math_sin(monster.pulsePhase + time * monster.pulseSpeed) + 1) * 0.5
-        local currentAlpha = monster.alpha * (0.7 + pulse * 0.3)
+    -- Draw shadow wisps (soft ghosts)
+    for _, wisp in ipairs(self.shadowWisps) do
+        local pulse = (math_sin(wisp.pulsePhase + time * wisp.pulseSpeed) + 1) * 0.5
+        local alpha = wisp.alpha * (0.5 + pulse * 0.5)
 
         lg.push()
-        lg.translate(monster.x, monster.y)
-        lg.rotate(monster.rotation)
-        lg.scale(monster.size, monster.size)
-
-        lg.setColor(0.6, 0.2, 0.2, currentAlpha)
-        lg.setLineWidth(2)
-        lg.print(monster.char, 0, 0, 0, 2)
-        lg.setLineWidth(1)
+        lg.translate(wisp.x, wisp.y)
+        lg.rotate(wisp.rotation)
+        lg.scale(wisp.size, wisp.size)
+        lg.setColor(0.1, 0.1, 0.15, alpha)
+        lg.print("☯", 0, 0, 0, 3)
         lg.pop()
     end
 
-    -- Draw floating symbols
-    for _, symbol in ipairs(self.floatingSymbols) do
-        local bobOffset = math_sin(time * symbol.bobSpeed) * symbol.bobAmount
-        local currentY = symbol.y + bobOffset
-        local currentAlpha = symbol.alpha
+    -- Draw torch motes
+    for _, mote in ipairs(self.torchMotes) do
+        local flicker = (math_sin(time * mote.flickerSpeed + mote.flickerPhase) + 1) * 0.5
+        local alpha = mote.alpha * (0.5 + flicker * 0.5)
 
-        if symbol.isGhost then
-            currentAlpha = currentAlpha * (0.3 + math_sin(time * 2) * 0.2)
-        end
-
-        lg.push()
-        lg.translate(symbol.x, currentY)
-        lg.rotate(symbol.rotation)
-
-        if symbol.isRevealed then
-            lg.setColor(0.3, 0.9, 0.4, currentAlpha)
-        else
-            lg.setColor(symbol.color[1], symbol.color[2], symbol.color[3], currentAlpha)
-        end
-
-        lg.print(symbol.char, 0, 0, 0, symbol.size / 18)
-        lg.pop()
+        lg.setColor(
+            mote.warmTone and (0.9) or (0.8),
+            mote.warmTone and (0.7) or (0.5),
+            mote.warmTone and (0.4) or (0.3),
+            alpha
+        )
+        lg.circle("fill", mote.x, mote.y, mote.size)
     end
-
-    -- Dungeon entrance silhouette in center background
-    lg.setColor(0.3, 0.3, 0.5, 0.15 + self.pulseValue * 0.1)
-    local centerX = screenWidth / 2
-    local centerY = screenHeight / 2 - 5
-
-    -- Dungeon entrance
-    lg.setLineWidth(6)
-    lg.rectangle("line", centerX - 100, centerY - 60, 200, 120, 10)
-    lg.setLineWidth(3)
-    lg.rectangle("line", centerX - 80, centerY - 40, 160, 80, 5)
-    lg.setLineWidth(1)
 end
 
 function BackgroundManager:drawGameBackground(screenWidth, screenHeight, time)
-    -- Dark, atmospheric dungeon gradient
-    for y = 0, screenHeight, 1.5 do
+    -- Cool stone dungeon atmosphere
+    for y = 0, screenHeight, 2 do
         local progress = y / screenHeight
-        local wave = math_sin(progress * 12 + time * 0.8) * 0.02
-        local pulse = math_sin(progress * 6 + time) * 0.01
-
-        local r = 0.02 + wave + pulse
-        local g = 0.02 + progress * 0.05 + wave
-        local b = 0.05 + progress * 0.08 + pulse
-
-        lg.setColor(r, g, b, 0.9)
-        lg.rectangle("fill", 0, y, screenWidth, 1.5)
+        local flicker = math_sin(time * 1.2 + progress * 8) * 0.015
+        local r = 0.05 + flicker
+        local g = 0.05 + progress * 0.05 + flicker
+        local b = 0.07 + progress * 0.08 + flicker
+        lg.setColor(r, g, b, 1)
+        lg.rectangle("fill", 0, y, screenWidth, 2)
     end
 
-    -- Subtle stone wall pattern
-    lg.setColor(0.1, 0.1, 0.15, 0.5)
-    local gridSize = 40
-    local offset = math_sin(time * 0.3) * 2
-
-    for x = -offset, screenWidth + offset, gridSize do
-        for y = -offset, screenHeight + offset, gridSize do
-            lg.push()
-            lg.translate(x, y)
-            lg.rectangle("line", 2, 2, gridSize - 4, gridSize - 4)
-            lg.pop()
+    -- Subtle stone block outlines
+    lg.setColor(0.1, 0.1, 0.12, 0.3)
+    local gridSize = 45
+    for x = 0, screenWidth, gridSize do
+        for y = 0, screenHeight, gridSize do
+            lg.rectangle("line", x, y, gridSize, gridSize)
         end
     end
 end

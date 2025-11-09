@@ -23,12 +23,11 @@ function SoundManager.new()
         }
     }, SoundManager)
 
-    instance.sounds.ambience:setLooping(true)
-    instance.sounds.ambience:setVolume(0.8)
-    instance.sounds.ambience:play()
-
     for name, sound in pairs(instance.sounds) do
-        if not name == "ambience" then
+        if name == "ambience" then
+            sound:setVolume(1)
+            sound:play(true)
+        else
             sound:setVolume(0.5)
         end
     end

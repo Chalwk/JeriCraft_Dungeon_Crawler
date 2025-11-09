@@ -88,6 +88,11 @@ local function getItemColor(self, itemName)
     return itemDef and itemDef.color or { 1, 1, 1 }
 end
 
+local function getRoomIndex(rooms, special)
+    -- Exclude first room where player starts / Exclude exit & first room
+    return special and math_random(2, #rooms) or math_random(2, #rooms - 1)
+end
+
 local function roomsIntersect(room1, room2)
     return room1.x <= room2.x + room2.w + 1
         and room1.x + room1.w + 1 >= room2.x
@@ -186,8 +191,7 @@ local function placeEntities(self, dungeon, monsters, items, player, room, isSpe
         local y = math_random(room.y + 1, room.y + room.h - 2)
 
         if not self:isBlocked(dungeon, monsters, player, x, y) then
-            local itemName
-            local itemChar, itemColor
+            local itemName, itemChar, itemColor
 
             if isSpecialRoom then
                 itemName = self.itemManager:getRandomEnhancedItem()
@@ -215,17 +219,11 @@ end
 local function placeKey(self, dungeon, items, monsters, player, rooms, isSpecial)
     if #rooms < 2 then return false end -- Need at least 2 rooms
 
-    local keyRoomIndex
-    if isSpecial then
-        keyRoomIndex = math_random(2, #rooms)     -- Exclude first room where player starts
-    else
-        keyRoomIndex = math_random(2, #rooms - 1) -- Exclude exit & first room
-    end
-
+    local keyRoomIndex = getRoomIndex(rooms, isSpecial)
     local keyRoom = rooms[keyRoomIndex]
     local attempts = 0
 
-    while attempts < 50 do
+    while attempts < 100 do
         local x = math_random(keyRoom.x + 1, keyRoom.x + keyRoom.w - 2)
         local y = math_random(keyRoom.y + 1, keyRoom.y + keyRoom.h - 2)
 
